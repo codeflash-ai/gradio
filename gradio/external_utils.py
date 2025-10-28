@@ -17,6 +17,14 @@ from huggingface_hub import HfApi, ImageClassificationOutputElement, InferenceCl
 from gradio import components
 from gradio.exceptions import Error, TooManyRequestsError
 
+_color_map = {
+    "GET": "#61affe",
+    "POST": "#49cc90",
+    "PUT": "#fca130",
+    "DELETE": "#f93e3e",
+    "PATCH": "#50e3c2",
+}
+
 
 def get_model_info(model_name, hf_token=None):
     hf_api = HfApi(token=hf_token)
@@ -586,19 +594,13 @@ def component_from_request_body_schema(
 
 
 def method_box(method: str) -> str:
-    color_map = {
-        "GET": "#61affe",
-        "POST": "#49cc90",
-        "PUT": "#fca130",
-        "DELETE": "#f93e3e",
-        "PATCH": "#50e3c2",
-    }
-    color = color_map.get(method.upper(), "#999")
+    method_upper = method.upper()
+    color = _color_map.get(method_upper, "#999")
     return (
         f"<span style='"
         f"display:inline-block;min-width:48px;padding:2px 10px;border-radius:4px;"
         f"background:{color};color:white;font-weight:bold;font-family:monospace;"
         f"margin-right:8px;text-align:center;border:2px solid {color};"
         f"box-shadow:0 1px 2px rgba(0,0,0,0.08);'"
-        f">{method.upper()}</span>"
+        f">{method_upper}</span>"
     )
