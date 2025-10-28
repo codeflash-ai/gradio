@@ -978,14 +978,15 @@ def get_cancelled_fn_indices(
     dependencies: list[dict[str, Any]],
 ) -> list[int]:
     fn_indices = []
-    for dep in dependencies:
-        root_block = get_blocks_context()
-        if root_block:
-            fn_index = next(
-                i for i, d in root_block.fns.items() if d.get_config() == dep
-            )
-            fn_indices.append(fn_index)
-
+    # Attempt to get the context just once if dependencies exist
+    root_block = get_blocks_context()
+    if root_block:
+        # Build a dict mapping config to fn_index for O(1) lookup
+        config_to_index = {d.get_config(): i for i, d in root_block.fns.items()}
+        for dep in dependencies:
+            fn_index = config_to_index.get(dep)
+            if fn_index is not None:
+                fn_indices.append(fn_index)
     return fn_indices
 
 
