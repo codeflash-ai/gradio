@@ -154,9 +154,11 @@ class ThemeClass:
 
         # For backwards compatibility, load attributes in base theme not in the loaded theme from the base theme.
         base = Base()
-        for attr in base.__dict__:
-            if not attr.startswith("_") and not hasattr(new_theme, attr):
-                setattr(new_theme, attr, getattr(base, attr))
+        base_dict = base.__dict__
+        new_theme_dict = new_theme.__dict__
+        for attr in base_dict:
+            if not attr.startswith("_") and attr not in new_theme_dict:
+                new_theme_dict[attr] = base_dict[attr]
 
         return new_theme
 
@@ -469,17 +471,21 @@ class Base(ThemeClass):
             font = [font]
 
         self._font = [
-            fontfam
-            if isinstance(fontfam, (fonts.Font, str))
-            else fonts.LocalFont(fontfam)
+            (
+                fontfam
+                if isinstance(fontfam, (fonts.Font, str))
+                else fonts.LocalFont(fontfam)
+            )
             for fontfam in font
         ]
         if isinstance(font_mono, (fonts.Font, str)):
             font_mono = [font_mono]
         self._font_mono = [
-            fontfam
-            if isinstance(fontfam, (fonts.Font, str))
-            else fonts.LocalFont(fontfam)
+            (
+                fontfam
+                if isinstance(fontfam, (fonts.Font, str))
+                else fonts.LocalFont(fontfam)
+            )
             for fontfam in font_mono
         ]
         self.font = ", ".join(str(font) for font in self._font)
