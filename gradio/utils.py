@@ -1732,41 +1732,36 @@ def get_function_description(fn: Callable) -> tuple[str, dict[str, str], list[st
     lines = fn_docstring.strip().split("\n")
 
     description_lines = []
+    param_lines = []
+    returns_lines = []
+    section = "description"
+
     for line in lines:
         line = line.strip()
-        if line.startswith(("Args:", "Parameters:", "Arguments:", "Returns:")):
-            break
-        if line:
-            description_lines.append(line)
+        if section == "description":
+            if line.startswith(("Args:", "Parameters:", "Arguments:")):
+                section = "parameters"
+                continue
+            elif line.startswith("Returns:"):
+                section = "returns"
+                continue
+            if line:
+                description_lines.append(line)
+        elif section == "parameters":
+            if line.startswith("Returns:"):
+                section = "returns"
+                continue
+            if line:
+                param_lines.append(line)
+        elif section == "returns":
+            if line:
+                returns_lines.append(line)
 
     description = " ".join(description_lines)
 
     try:
-        param_start_idx = next(
-            (
-                i
-                for i, line in enumerate(lines)
-                if line.strip().startswith(("Args:", "Parameters:", "Arguments:"))
-            ),
-            len(lines),
-        )
-
-        returns_start_idx = next(
-            (i for i, line in enumerate(lines) if line.strip().startswith("Returns:")),
-            len(lines),
-        )
-
-        # Parse parameters section (from param_start_idx to returns_start_idx or end)
-        param_end_idx = (
-            returns_start_idx if returns_start_idx < len(lines) else len(lines)
-        )
-        for line in lines[param_start_idx + 1 : param_end_idx]:
-            line = line.strip()
-            if not line:
-                continue
-            if line.startswith("Returns:"):
-                break
-
+        # Parse parameter lines
+        for line in param_lines:
             try:
                 if ":" in line:
                     param_name, param_desc = line.split(":", 1)
@@ -1777,13 +1772,7 @@ def get_function_description(fn: Callable) -> tuple[str, dict[str, str], list[st
                 continue
 
         # Parse returns section
-        if returns_start_idx < len(lines):
-            for line in lines[returns_start_idx + 1 :]:
-                line = line.strip()
-                if not line:
-                    continue
-
-                returns.append(line)
+        returns.extend(returns_lines)
 
     except Exception:
         pass
