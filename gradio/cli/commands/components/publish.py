@@ -24,10 +24,9 @@ PYPI_REGISTER_URL = "https://pypi.org/account/register/"
 
 
 def _ignore(_src, names):
-    ignored = []
-    for n in names:
-        if "__pycache__" in n or n.startswith("dist") or n.startswith("node_modules"):
-            ignored.append(n)
+    ignored = [
+        n for n in names if "__pycache__" in n or n.startswith(("dist", "node_modules"))
+    ]
     return ignored
 
 
@@ -70,7 +69,8 @@ def _publish(
     dist_dir: Annotated[
         Path,
         Argument(help=f"Path to the wheel directory. Default is {Path('.') / 'dist'}"),
-    ] = Path(".") / "dist",
+    ] = Path(".")
+    / "dist",
     upload_pypi: Annotated[bool, Option(help="Whether to upload to PyPI.")] = True,
     pypi_username: Annotated[str, Option(help="The username for PyPI.")] = "",
     pypi_password: Annotated[str, Option(help="The password for PyPI.")] = "",
