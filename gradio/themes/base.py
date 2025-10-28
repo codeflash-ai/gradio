@@ -22,6 +22,8 @@ from gradio.themes.utils import (
 )
 from gradio.themes.utils.readme_content import README_CONTENT
 
+_PATTERN_STAR_WORD = re.compile(r"(\*)([\w_]+)(\b)")
+
 
 class ThemeClass:
     def __init__(self):
@@ -100,23 +102,33 @@ class ThemeClass:
         if depth > max_depth:
             warnings.warn(f"Cannot resolve '{property}' - circular reference detected.")
             return ""
+
+        # Avoid recomputing suffix repeatedly.
         is_dark = property.endswith("_dark")
         if is_dark:
-            set_value = getattr(
-                self, property, getattr(self, property[:-5], "")
-            )  # if dark mode value is unavailable, use light mode value
+            # Avoid redundant getattr by using evaled variables as fallback
+            base_prop = property[:-5]
+            set_value = getattr(self, property, getattr(self, base_prop, ""))
         else:
             set_value = getattr(self, property, "")
-        pattern = r"(\*)([\w_]+)(\b)"
 
-        def repl_func(match, depth):
+        # Use compiled pattern for better performance
+        pattern = _PATTERN_STAR_WORD
+
+        # Inline the depth argument in the lambda closure for less Python function call overhead
+        dark_suffix = "_dark" if is_dark else ""
+
+        # Manually inline the function to minimize frame overhead, only passing what's needed
+        def _replace(match):
             word = match.group(2)
-            dark_suffix = "_dark" if property.endswith("_dark") else ""
             return self._get_computed_value(word + dark_suffix, depth + 1)
 
-        computed_value = re.sub(
-            pattern, lambda match: repl_func(match, depth), set_value
-        )
+        # Only call re.sub if "*" is present in set_value
+        if "*" in set_value:
+            computed_value = pattern.sub(_replace, set_value)
+        else:
+            computed_value = set_value
+
         return computed_value
 
     def to_dict(self):
@@ -469,17 +481,21 @@ class Base(ThemeClass):
             font = [font]
 
         self._font = [
-            fontfam
-            if isinstance(fontfam, (fonts.Font, str))
-            else fonts.LocalFont(fontfam)
+            (
+                fontfam
+                if isinstance(fontfam, (fonts.Font, str))
+                else fonts.LocalFont(fontfam)
+            )
             for fontfam in font
         ]
         if isinstance(font_mono, (fonts.Font, str)):
             font_mono = [font_mono]
         self._font_mono = [
-            fontfam
-            if isinstance(fontfam, (fonts.Font, str))
-            else fonts.LocalFont(fontfam)
+            (
+                fontfam
+                if isinstance(fontfam, (fonts.Font, str))
+                else fonts.LocalFont(fontfam)
+            )
             for fontfam in font_mono
         ]
         self.font = ", ".join(str(font) for font in self._font)
