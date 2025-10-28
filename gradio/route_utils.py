@@ -474,7 +474,11 @@ def get_root_url(
 def _user_safe_decode(src: bytes, codec: str) -> str:
     try:
         return src.decode(codec)
-    except (UnicodeDecodeError, LookupError):
+    except UnicodeDecodeError:
+        if codec == "latin-1":
+            raise
+        return src.decode("latin-1")
+    except LookupError:
         return src.decode("latin-1")
 
 
