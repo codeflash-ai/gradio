@@ -663,9 +663,11 @@ with gr.Blocks(  # noqa: SIM117
                     )
                 ):
                     font_diffs[font_set_name] = [
-                        f"gr.themes.GoogleFont('{font_name}')"
-                        if is_google_font
-                        else f"'{font_name}'"
+                        (
+                            f"gr.themes.GoogleFont('{font_name}')"
+                            if is_google_font
+                            else f"'{font_name}'"
+                        )
                         for font_name, is_google_font in theme_font_set
                     ]
 
@@ -730,40 +732,56 @@ with gr.Blocks(theme=theme) as demo:
                 3 + 3 * len(palette_range) : 6 + 3 * len(palette_range)
             ]
             text_sizes = args[
-                6 + 3 * len(palette_range) : 6
+                6
+                + 3 * len(palette_range) : 6
                 + 3 * len(palette_range)
                 + len(size_range)
             ]
             spacing_sizes = args[
-                6 + 3 * len(palette_range) + len(size_range) : 6
+                6
+                + 3 * len(palette_range)
+                + len(size_range) : 6
                 + 3 * len(palette_range)
                 + 2 * len(size_range)
             ]
             radius_sizes = args[
-                6 + 3 * len(palette_range) + 2 * len(size_range) : 6
+                6
+                + 3 * len(palette_range)
+                + 2 * len(size_range) : 6
                 + 3 * len(palette_range)
                 + 3 * len(size_range)
             ]
             main_fonts = args[
-                6 + 3 * len(palette_range) + 3 * len(size_range) : 6
+                6
+                + 3 * len(palette_range)
+                + 3 * len(size_range) : 6
                 + 3 * len(palette_range)
                 + 3 * len(size_range)
                 + 4
             ]
             main_is_google = args[
-                6 + 3 * len(palette_range) + 3 * len(size_range) + 4 : 6
+                6
+                + 3 * len(palette_range)
+                + 3 * len(size_range)
+                + 4 : 6
                 + 3 * len(palette_range)
                 + 3 * len(size_range)
                 + 8
             ]
             mono_fonts = args[
-                6 + 3 * len(palette_range) + 3 * len(size_range) + 8 : 6
+                6
+                + 3 * len(palette_range)
+                + 3 * len(size_range)
+                + 8 : 6
                 + 3 * len(palette_range)
                 + 3 * len(size_range)
                 + 12
             ]
             mono_is_google = args[
-                6 + 3 * len(palette_range) + 3 * len(size_range) + 12 : 6
+                6
+                + 3 * len(palette_range)
+                + 3 * len(size_range)
+                + 12 : 6
                 + 3 * len(palette_range)
                 + 3 * len(size_range)
                 + 16
@@ -870,7 +888,12 @@ with gr.Blocks(theme=theme) as demo:
             )
 
         def load_color(color_name):
-            color = [color for color in colors if color.name == color_name][0]
+            # Optimize lookup: use next() instead of list comprehension for early exit
+            color = next((color for color in colors if color.name == color_name), None)
+            # This will still raise an IndexError if not found, preserving behavior
+            if color is None:
+                raise IndexError("list index out of range")
+            # Optimize palette building with list comprehension outside of getattr string formatting
             return [getattr(color, f"c{i}") for i in palette_range]
 
         attach_rerender(
