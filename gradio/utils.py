@@ -787,12 +787,15 @@ def sanitize_value_for_csv(value: str | float) -> str | float:
     """
     if isinstance(value, (float, int)):
         return value
-    unsafe_prefixes = ["=", "+", "-", "@", "\t", "\n"]
-    unsafe_sequences = [",=", ",+", ",-", ",@", ",\t", ",\n"]
-    if any(value.startswith(prefix) for prefix in unsafe_prefixes) or any(
-        sequence in value for sequence in unsafe_sequences
-    ):
-        value = f"'{value}"
+    # Use tuples for faster lookup
+    unsafe_prefixes = ("=", "+", "-", "@", "\t", "\n")
+    unsafe_sequences = (",=", ",+", ",-", ",@", ",\t", ",\n")
+
+    if value.startswith(unsafe_prefixes):
+        return f"'{value}"
+    for sequence in unsafe_sequences:
+        if sequence in value:
+            return f"'{value}"
     return value
 
 
