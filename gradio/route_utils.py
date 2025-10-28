@@ -552,9 +552,10 @@ class FileUploadProgress:
         self._statuses[upload_id].is_done = True
 
     def is_done(self, upload_id: str):
-        if upload_id not in self._statuses:
+        try:
+            return self._statuses[upload_id].is_done
+        except KeyError:
             raise FileUploadProgressNotTrackedError()
-        return self._statuses[upload_id].is_done
 
     def stop_tracking(self, upload_id: str):
         if upload_id in self._statuses:
