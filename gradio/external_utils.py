@@ -150,28 +150,30 @@ def conversational_wrapper(client: InferenceClient):
 
 def encode_to_base64(r: httpx.Response) -> str:
     # Handles the different ways HF API returns the prediction
-    base64_repr = base64.b64encode(r.content).decode("utf-8")
-    data_prefix = ";base64,"
-    # Case 1: base64 representation already includes data prefix
-    if data_prefix in base64_repr:
-        return base64_repr
-    else:
-        content_type = r.headers.get("content-type")
-        # Case 2: the data prefix is a key in the response
-        if content_type == "application/json":
-            try:
-                data = r.json()[0]
-                content_type = data["content-type"]
-                base64_repr = data["blob"]
-            except KeyError as ke:
-                raise ValueError(
-                    "Cannot determine content type returned by external API."
-                ) from ke
-        # Case 3: the data prefix is included in the response headers
-        else:
-            pass
+
+    # Fast-path: If "content-type" header is NOT application/json,
+    #   perform b64encode + decode ONCE and check for prefix.
+    content_type = r.headers.get("content-type")
+    if content_type != "application/json":
+        base64_repr = base64.b64encode(r.content).decode("utf-8")
+        data_prefix = ";base64,"
+        if data_prefix in base64_repr:
+            return base64_repr
         new_base64 = f"data:{content_type};base64,{base64_repr}"
         return new_base64
+
+    # "application/json" case: Avoid double base64 encode
+    # Data from r.json()[0] is used directly.
+    try:
+        data = r.json()[0]
+        content_type = data["content-type"]
+        base64_repr = data["blob"]
+    except KeyError as ke:
+        raise ValueError(
+            "Cannot determine content type returned by external API."
+        ) from ke
+    new_base64 = f"data:{content_type};base64,{base64_repr}"
+    return new_base64
 
 
 def format_ner_list(input_string: str, ner_groups: list[dict[str, str | int]]):
