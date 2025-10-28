@@ -1455,9 +1455,13 @@ def connect_heartbeat(config: BlocksConfigDict, blocks) -> bool:
     """
     from gradio.components import State
 
-    any_state = any(isinstance(block, State) for block in blocks)
-    any_unload = False
-    any_stream = False
+    # Short-circuit if any State is present
+    for block in blocks:
+        if isinstance(block, State):
+            any_state = True
+            break
+    else:
+        any_state = False
 
     if "dependencies" not in config:
         raise ValueError(
@@ -1465,15 +1469,25 @@ def connect_heartbeat(config: BlocksConfigDict, blocks) -> bool:
             "heartbeat is required."
         )
 
-    for dep in config["dependencies"]:
+    # Collect all candidate target[1]s that may trigger heartbeat
+    any_unload = False
+    any_stream = False
+    # Since the first match is enough, use generators for early exit
+    dependencies = config["dependencies"]
+    for dep in dependencies:
         for target in dep["targets"]:
+            # (list, tuple) check and len==2 only; optimized to not redundantly assign unless matching
             if isinstance(target, (list, tuple)) and len(target) == 2:
-                any_unload = target[1] == "unload"
-                if any_unload:
-                    break
-                any_stream = target[1] == "stream"
-                if any_stream:
-                    break
+                action = target[1]
+                if action == "unload":
+                    any_unload = True
+                    # Early return: no need to check further if unload present
+                    return any_state or any_unload or any_stream
+                if action == "stream":
+                    any_stream = True
+                    # Early return: no need to check further if stream present
+                    return any_state or any_unload or any_stream
+
     return any_state or any_unload or any_stream
 
 
