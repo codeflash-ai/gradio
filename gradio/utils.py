@@ -1559,21 +1559,31 @@ class UnhashableKeyDict(MutableMapping):
 def safe_join(directory: DeveloperPath, path: UserProvidedPath) -> str:
     """Safely path to a base directory to avoid escaping the base directory.
     Borrowed from: werkzeug.security.safe_join"""
-    _os_alt_seps: list[str] = [
-        sep for sep in [os.path.sep, os.path.altsep] if sep is not None and sep != "/"
-    ]
+    sep = os.path.sep
+    altsep = os.path.altsep
+    # _os_alt_seps: only computed when needed
+    if sep != "/" and sep is not None:
+        if altsep != "/" and altsep is not None:
+            _os_alt_seps = [sep, altsep]
+        else:
+            _os_alt_seps = [sep]
+    elif altsep != "/" and altsep is not None:
+        _os_alt_seps = [altsep]
+    else:
+        _os_alt_seps = []
 
     filename = posixpath.normpath(path)
-    fullpath = os.path.join(directory, filename)
+    # Only join if checks pass
+    # Fastest check order: os.path.isabs can be quick shortcut
     if (
-        any(sep in filename for sep in _os_alt_seps)
-        or os.path.isabs(filename)
+        os.path.isabs(filename)
         or filename == ".."
         or filename.startswith("../")
+        or (_os_alt_seps and any(sep in filename for sep in _os_alt_seps))
     ):
         raise InvalidPathError()
 
-    return fullpath
+    return os.path.join(directory, filename)
 
 
 def is_allowed_file(
