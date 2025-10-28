@@ -427,16 +427,19 @@ def get_api_call_path(request: fastapi.Request) -> str:
     Raises:
         ValueError: If the request URL does not match any recognized API call pattern.
     """
+    request_path = request.url.path
+    # Remove trailing slash only if present (saves unnecessary string allocation)
+    if request_path.endswith("/"):
+        request_path = request_path[:-1]
     queue_api_url = f"{API_PREFIX}/queue/join"
-    generic_api_url = f"{API_PREFIX}/call"
-    request_path = request.url.path.rstrip("/")
-
     if request_path.endswith(queue_api_url):
         return queue_api_url
 
-    start_index = request_path.rfind(generic_api_url)
-    if start_index >= 0:
-        return request_path[start_index : len(request_path)]
+    generic_api_url = f"{API_PREFIX}/call"
+    # Use partition instead of rfind and slicing to minimize interim string ops
+    idx = request_path.rfind(generic_api_url)
+    if idx >= 0:
+        return request_path[idx:]
 
     raise ValueError(
         f"Request url '{str(request.url)}' has an unknown api call pattern."
