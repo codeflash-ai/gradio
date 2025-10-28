@@ -388,7 +388,7 @@ async def call_process_api(
 def get_first_header_value(request: fastapi.Request, header_name: str):
     header_value = request.headers.get(header_name)
     if header_value:
-        return header_value.split(",")[0].strip()
+        return header_value.partition(",")[0].strip()
     return None
 
 
