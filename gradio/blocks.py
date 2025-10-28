@@ -31,45 +31,18 @@ from gradio_client import utils as client_utils
 from gradio_client.documentation import document
 from groovy import transpile
 
-from gradio import (
-    analytics,
-    components,
-    networking,
-    processing_utils,
-    queueing,
-    themes,
-    utils,
-)
+from gradio import (analytics, components, networking, processing_utils,
+                    queueing, themes, utils)
 from gradio.block_function import BlockFunction
 from gradio.blocks_events import BLOCKS_EVENTS, BlocksEvents, BlocksMeta
-from gradio.context import (
-    Context,
-    LocalContext,
-    get_blocks_context,
-    get_render_context,
-    set_render_context,
-)
-from gradio.data_classes import (
-    APIEndpointInfo,
-    APIInfo,
-    BlocksConfigDict,
-    DeveloperPath,
-    FileData,
-    GradioModel,
-    GradioRootModel,
-    Layout,
-)
-from gradio.events import (
-    EventData,
-    EventListener,
-    EventListenerMethod,
-)
-from gradio.exceptions import (
-    ChecksumMismatchError,
-    DuplicateBlockError,
-    InvalidApiNameError,
-    InvalidComponentError,
-)
+from gradio.context import (Context, LocalContext, get_blocks_context,
+                            get_render_context, set_render_context)
+from gradio.data_classes import (APIEndpointInfo, APIInfo, BlocksConfigDict,
+                                 DeveloperPath, FileData, GradioModel,
+                                 GradioRootModel, Layout)
+from gradio.events import EventData, EventListener, EventListenerMethod
+from gradio.exceptions import (ChecksumMismatchError, DuplicateBlockError,
+                               InvalidApiNameError, InvalidComponentError)
 from gradio.helpers import create_tracker, skip, special_args
 from gradio.i18n import I18n, I18nData
 from gradio.node_server import start_node_server
@@ -78,25 +51,15 @@ from gradio.routes import INTERNAL_ROUTES, VERSION, App, Request
 from gradio.state_holder import SessionState, StateHolder
 from gradio.themes import Default as DefaultTheme
 from gradio.themes import ThemeClass as Theme
-from gradio.tunneling import (
-    BINARY_FILENAME,
-    BINARY_FOLDER,
-    BINARY_PATH,
-    BINARY_URL,
-    CURRENT_TUNNELS,
-)
-from gradio.utils import (
-    TupleNoPrint,
-    check_function_inputs_match,
-    component_or_layout_class,
-    get_cancelled_fn_indices,
-    get_node_path,
-    get_package_version,
-    get_upload_folder,
-)
+from gradio.tunneling import (BINARY_FILENAME, BINARY_FOLDER, BINARY_PATH,
+                              BINARY_URL, CURRENT_TUNNELS)
+from gradio.utils import (TupleNoPrint, check_function_inputs_match,
+                          component_or_layout_class, get_cancelled_fn_indices,
+                          get_node_path, get_package_version,
+                          get_upload_folder)
 
 try:
-    import spaces  # type: ignore
+    pass
 except Exception:
     spaces = None
 
@@ -428,7 +391,9 @@ class Block:
             data = {"path": url_or_file_path, "meta": {"_type": "gradio.FileData"}}
             try:
                 return processing_utils.move_files_to_cache(data, self)
-            except AttributeError:  # Can be raised if this function is called before the Block is fully initialized.
+            except (
+                AttributeError
+            ):  # Can be raised if this function is called before the Block is fully initialized.
                 return data
 
 
@@ -809,9 +774,12 @@ class BlocksConfig:
             api_description=api_description,
             js=js,
             show_progress=show_progress,
-            show_progress_on=show_progress_on
-            if isinstance(show_progress_on, (list, tuple)) or show_progress_on is None
-            else [show_progress_on],
+            show_progress_on=(
+                show_progress_on
+                if isinstance(show_progress_on, (list, tuple))
+                or show_progress_on is None
+                else [show_progress_on]
+            ),
             cancels=cancels,
             collects_event_data=collects_event_data,
             trigger_after=trigger_after,
@@ -1354,7 +1322,9 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
                     ]
                 dependency = root_block.default_config.set_event_trigger(  # type: ignore
                     targets=targets, fn=fn, **dependency
-                )[0]
+                )[
+                    0
+                ]
                 if first_dependency is None:
                     first_dependency = dependency
 
@@ -2786,7 +2756,8 @@ Received inputs:
             inline = utils.ipython_check()
         if inline:
             try:
-                from IPython.display import HTML, Javascript, display  # type: ignore
+                from IPython.display import (HTML, Javascript,  # type: ignore
+                                             display)
 
                 if self.share and self.share_url:
                     while not networking.url_ok(self.share_url):
@@ -2857,7 +2828,8 @@ Received inputs:
             or int(os.getenv("GRADIO_DEBUG", "0")) == 1
             or (
                 # Block main thread if running in a script to stop script from exiting
-                not prevent_thread_lock and not is_in_interactive_mode
+                not prevent_thread_lock
+                and not is_in_interactive_mode
                 # In the Wasm env, we don't have to block the main thread because the server won't be shut down after the execution finishes.
                 # Moreover, we MUST NOT do it because there is only one thread in the Wasm env and blocking it will stop the subsequent code from running.
             )
@@ -2892,9 +2864,9 @@ Received inputs:
             else:
                 raise ValueError("Please run `launch()` first.")
         if wandb is not None:
-            assert hasattr(wandb, "log") and hasattr(wandb, "Html"), (  # noqa: S101
-                "wandb module missing required attributes"
-            )
+            assert hasattr(wandb, "log") and hasattr(
+                wandb, "Html"
+            ), "wandb module missing required attributes"  # noqa: S101
             analytics_integration = "WandB"
             if self.share_url is not None:
                 wandb.log(  # type: ignore
@@ -2915,9 +2887,9 @@ Received inputs:
                     "The WandB integration requires you to `launch(share=True)` first."
                 )
         if mlflow is not None:
-            assert hasattr(mlflow, "log_param"), (  # noqa: S101
-                "mlflow module missing required attributes"
-            )
+            assert hasattr(
+                mlflow, "log_param"
+            ), "mlflow module missing required attributes"  # noqa: S101
             analytics_integration = "MLFlow"
             if self.share_url is not None:
                 mlflow.log_param("Gradio Interface Share Link", self.share_url)  # type: ignore

@@ -10,6 +10,95 @@ from PIL import Image
 
 from gradio import components
 
+_textbox_prompt = components.Textbox(label="Prompt", render=False)
+
+_textbox_negative_prompt = components.Textbox(label="Negative prompt", render=False)
+
+_slider_inf_steps = components.Slider(
+    label="Number of inference steps", minimum=1, maximum=500, value=50, step=1
+)
+
+_slider_guidance_scale = components.Slider(
+    label="Guidance scale", minimum=1, maximum=20, value=7.5, step=0.5
+)
+
+_image_output = components.Image(label="Generated Image", render=False, type="pil")
+
+_sd_pipeline_inputs = [
+    _textbox_prompt,
+    _textbox_negative_prompt,
+    _slider_inf_steps,
+    _slider_guidance_scale,
+]
+
+_sd_pipeline_outputs = _image_output
+
+_sd_img2img_inputs = [
+    _textbox_prompt,
+    _textbox_negative_prompt,
+    components.Image(type="filepath", label="Image", render=False),
+    components.Slider(label="Strength", minimum=0, maximum=1, value=0.8, step=0.1),
+    _slider_inf_steps,
+    _slider_guidance_scale,
+]
+
+_sd_img2img_outputs = _image_output
+
+_sd_inpaint_inputs = [
+    _textbox_prompt,
+    _textbox_negative_prompt,
+    components.Image(type="filepath", label="Image", render=False),
+    components.Image(type="filepath", label="Mask Image", render=False),
+    components.Slider(label="Strength", minimum=0, maximum=1, value=0.8, step=0.1),
+    _slider_inf_steps,
+    _slider_guidance_scale,
+]
+
+_sd_inpaint_outputs = _image_output
+
+_sd_depth2img_inputs = [
+    _textbox_prompt,
+    _textbox_negative_prompt,
+    components.Image(type="filepath", label="Image", render=False),
+    components.Slider(label="Strength", minimum=0, maximum=1, value=0.8, step=0.1),
+    _slider_inf_steps,
+    _slider_guidance_scale,
+]
+
+_sd_depth2img_outputs = _image_output
+
+_sd_imagevar_inputs = [
+    components.Image(type="filepath", label="Image", render=False),
+    _slider_inf_steps,
+    _slider_guidance_scale,
+]
+
+_sd_imagevar_outputs = _image_output
+
+_sd_instruct_pix2pix_inputs = [
+    _textbox_prompt,
+    _textbox_negative_prompt,
+    components.Image(type="filepath", label="Image", render=False),
+    _slider_inf_steps,
+    _slider_guidance_scale,
+    components.Slider(
+        label="Image Guidance scale", minimum=1, maximum=5, value=1.5, step=0.5
+    ),
+]
+
+_sd_instruct_pix2pix_outputs = _image_output
+
+_sd_upscale_inputs = [
+    _textbox_prompt,
+    _textbox_negative_prompt,
+    components.Image(type="filepath", label="Image", render=False),
+    _slider_inf_steps,
+    _slider_guidance_scale,
+    components.Slider(label="Noise level", minimum=1, maximum=100, value=20, step=1),
+]
+
+_sd_upscale_outputs = _image_output
+
 
 def handle_transformers_pipeline(pipeline: Any) -> dict[str, Any] | None:
     try:
@@ -210,27 +299,8 @@ def handle_diffusers_pipeline(pipeline: Any) -> dict[str, Any] | None:
 
     if is_diffusers_pipeline_type(pipeline, "StableDiffusionPipeline"):
         return {
-            "inputs": [
-                components.Textbox(label="Prompt", render=False),
-                components.Textbox(label="Negative prompt", render=False),
-                components.Slider(
-                    label="Number of inference steps",
-                    minimum=1,
-                    maximum=500,
-                    value=50,
-                    step=1,
-                ),
-                components.Slider(
-                    label="Guidance scale",
-                    minimum=1,
-                    maximum=20,
-                    value=7.5,
-                    step=0.5,
-                ),
-            ],
-            "outputs": components.Image(
-                label="Generated Image", render=False, type="pil"
-            ),
+            "inputs": _sd_pipeline_inputs,
+            "outputs": _sd_pipeline_outputs,
             "preprocess": lambda prompt, n_prompt, num_inf_steps, g_scale: {
                 "prompt": prompt,
                 "negative_prompt": n_prompt,
@@ -241,37 +311,9 @@ def handle_diffusers_pipeline(pipeline: Any) -> dict[str, Any] | None:
         }
     if is_diffusers_pipeline_type(pipeline, "StableDiffusionImg2ImgPipeline"):
         return {
-            "inputs": [
-                components.Textbox(label="Prompt", render=False),
-                components.Textbox(label="Negative prompt", render=False),
-                components.Image(type="filepath", label="Image", render=False),
-                components.Slider(
-                    label="Strength", minimum=0, maximum=1, value=0.8, step=0.1
-                ),
-                components.Slider(
-                    label="Number of inference steps",
-                    minimum=1,
-                    maximum=500,
-                    value=50,
-                    step=1,
-                ),
-                components.Slider(
-                    label="Guidance scale",
-                    minimum=1,
-                    maximum=20,
-                    value=7.5,
-                    step=0.5,
-                ),
-            ],
-            "outputs": components.Image(
-                label="Generated Image", render=False, type="pil"
-            ),
-            "preprocess": lambda prompt,
-            n_prompt,
-            image,
-            strength,
-            num_inf_steps,
-            g_scale: {
+            "inputs": _sd_img2img_inputs,
+            "outputs": _sd_img2img_outputs,
+            "preprocess": lambda prompt, n_prompt, image, strength, num_inf_steps, g_scale: {
                 "prompt": prompt,
                 "image": Image.open(image).resize((768, 768)),
                 "negative_prompt": n_prompt,
@@ -283,39 +325,9 @@ def handle_diffusers_pipeline(pipeline: Any) -> dict[str, Any] | None:
         }
     if is_diffusers_pipeline_type(pipeline, "StableDiffusionInpaintPipeline"):
         return {
-            "inputs": [
-                components.Textbox(label="Prompt", render=False),
-                components.Textbox(label="Negative prompt", render=False),
-                components.Image(type="filepath", label="Image", render=False),
-                components.Image(type="filepath", label="Mask Image", render=False),
-                components.Slider(
-                    label="Strength", minimum=0, maximum=1, value=0.8, step=0.1
-                ),
-                components.Slider(
-                    label="Number of inference steps",
-                    minimum=1,
-                    maximum=500,
-                    value=50,
-                    step=1,
-                ),
-                components.Slider(
-                    label="Guidance scale",
-                    minimum=1,
-                    maximum=20,
-                    value=7.5,
-                    step=0.5,
-                ),
-            ],
-            "outputs": components.Image(
-                label="Generated Image", render=False, type="pil"
-            ),
-            "preprocess": lambda prompt,
-            n_prompt,
-            image,
-            mask_image,
-            strength,
-            num_inf_steps,
-            g_scale: {
+            "inputs": _sd_inpaint_inputs,
+            "outputs": _sd_inpaint_outputs,
+            "preprocess": lambda prompt, n_prompt, image, mask_image, strength, num_inf_steps, g_scale: {
                 "prompt": prompt,
                 "image": Image.open(image).resize((768, 768)),
                 "mask_image": Image.open(mask_image).resize((768, 768)),
@@ -328,37 +340,9 @@ def handle_diffusers_pipeline(pipeline: Any) -> dict[str, Any] | None:
         }
     if is_diffusers_pipeline_type(pipeline, "StableDiffusionDepth2ImgPipeline"):
         return {
-            "inputs": [
-                components.Textbox(label="Prompt", render=False),
-                components.Textbox(label="Negative prompt", render=False),
-                components.Image(type="filepath", label="Image", render=False),
-                components.Slider(
-                    label="Strength", minimum=0, maximum=1, value=0.8, step=0.1
-                ),
-                components.Slider(
-                    label="Number of inference steps",
-                    minimum=1,
-                    maximum=500,
-                    value=50,
-                    step=1,
-                ),
-                components.Slider(
-                    label="Guidance scale",
-                    minimum=1,
-                    maximum=20,
-                    value=7.5,
-                    step=0.5,
-                ),
-            ],
-            "outputs": components.Image(
-                label="Generated Image", render=False, type="pil"
-            ),
-            "preprocess": lambda prompt,
-            n_prompt,
-            image,
-            strength,
-            num_inf_steps,
-            g_scale: {
+            "inputs": _sd_depth2img_inputs,
+            "outputs": _sd_depth2img_outputs,
+            "preprocess": lambda prompt, n_prompt, image, strength, num_inf_steps, g_scale: {
                 "prompt": prompt,
                 "image": Image.open(image).resize((768, 768)),
                 "negative_prompt": n_prompt,
@@ -370,26 +354,8 @@ def handle_diffusers_pipeline(pipeline: Any) -> dict[str, Any] | None:
         }
     if is_diffusers_pipeline_type(pipeline, "StableDiffusionImageVariationPipeline"):
         return {
-            "inputs": [
-                components.Image(type="filepath", label="Image", render=False),
-                components.Slider(
-                    label="Number of inference steps",
-                    minimum=1,
-                    maximum=500,
-                    value=50,
-                    step=1,
-                ),
-                components.Slider(
-                    label="Guidance scale",
-                    minimum=1,
-                    maximum=20,
-                    value=7.5,
-                    step=0.5,
-                ),
-            ],
-            "outputs": components.Image(
-                label="Generated Image", render=False, type="pil"
-            ),
+            "inputs": _sd_imagevar_inputs,
+            "outputs": _sd_imagevar_outputs,
             "preprocess": lambda image, num_inf_steps, g_scale: {
                 "image": Image.open(image).resize((768, 768)),
                 "num_inference_steps": num_inf_steps,
@@ -399,41 +365,9 @@ def handle_diffusers_pipeline(pipeline: Any) -> dict[str, Any] | None:
         }
     if is_diffusers_pipeline_type(pipeline, "StableDiffusionInstructPix2PixPipeline"):
         return {
-            "inputs": [
-                components.Textbox(label="Prompt", render=False),
-                components.Textbox(label="Negative prompt", render=False),
-                components.Image(type="filepath", label="Image", render=False),
-                components.Slider(
-                    label="Number of inference steps",
-                    minimum=1,
-                    maximum=500,
-                    value=50,
-                    step=1,
-                ),
-                components.Slider(
-                    label="Guidance scale",
-                    minimum=1,
-                    maximum=20,
-                    value=7.5,
-                    step=0.5,
-                ),
-                components.Slider(
-                    label="Image Guidance scale",
-                    minimum=1,
-                    maximum=5,
-                    value=1.5,
-                    step=0.5,
-                ),
-            ],
-            "outputs": components.Image(
-                label="Generated Image", render=False, type="pil"
-            ),
-            "preprocess": lambda prompt,
-            n_prompt,
-            image,
-            num_inf_steps,
-            g_scale,
-            img_g_scale: {
+            "inputs": _sd_instruct_pix2pix_inputs,
+            "outputs": _sd_instruct_pix2pix_outputs,
+            "preprocess": lambda prompt, n_prompt, image, num_inf_steps, g_scale, img_g_scale: {
                 "prompt": prompt,
                 "image": Image.open(image).resize((768, 768)),
                 "negative_prompt": n_prompt,
@@ -445,37 +379,9 @@ def handle_diffusers_pipeline(pipeline: Any) -> dict[str, Any] | None:
         }
     if is_diffusers_pipeline_type(pipeline, "StableDiffusionUpscalePipeline"):
         return {
-            "inputs": [
-                components.Textbox(label="Prompt", render=False),
-                components.Textbox(label="Negative prompt", render=False),
-                components.Image(type="filepath", label="Image", render=False),
-                components.Slider(
-                    label="Number of inference steps",
-                    minimum=1,
-                    maximum=500,
-                    value=50,
-                    step=1,
-                ),
-                components.Slider(
-                    label="Guidance scale",
-                    minimum=1,
-                    maximum=20,
-                    value=7.5,
-                    step=0.5,
-                ),
-                components.Slider(
-                    label="Noise level", minimum=1, maximum=100, value=20, step=1
-                ),
-            ],
-            "outputs": components.Image(
-                label="Generated Image", render=False, type="pil"
-            ),
-            "preprocess": lambda prompt,
-            n_prompt,
-            image,
-            num_inf_steps,
-            g_scale,
-            noise_level: {
+            "inputs": _sd_upscale_inputs,
+            "outputs": _sd_upscale_outputs,
+            "preprocess": lambda prompt, n_prompt, image, num_inf_steps, g_scale, noise_level: {
                 "prompt": prompt,
                 "image": Image.open(image).resize((768, 768)),
                 "negative_prompt": n_prompt,
