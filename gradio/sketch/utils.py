@@ -122,6 +122,19 @@ def get_value_description(component_class, config):
 
 
 def extract_value_type_hint(func: Callable) -> str:
+    try:
+        annotations = func.__annotations__
+        if "value" in annotations:
+            param = annotations["value"]
+            if hasattr(param, "__origin__") and param.__origin__ is Union:
+                return " | ".join(arg.__name__ for arg in param.__args__)
+            elif hasattr(param, "__name__"):
+                return param.__name__
+            else:
+                return str(param).replace("typing.", "")
+    except (AttributeError, KeyError):
+        pass
+
     sig = inspect.signature(func)
 
     if "value" in sig.parameters:
