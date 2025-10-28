@@ -12,6 +12,10 @@ from typer import Option
 
 import gradio as gr
 
+_invalid_chars_pattern = re.compile(r"[^a-zA-Z0-9\-._]")
+
+_hyphens_pattern = re.compile(r"-+")
+
 repo_directory = os.getcwd()
 readme_file = os.path.join(repo_directory, "README.md")
 github_action_template = os.path.join(
@@ -112,10 +116,9 @@ def add_configuration_to_readme(
 
 def format_title(title: str):
     title = title.replace(" ", "_")
-    title = re.sub(r"[^a-zA-Z0-9\-._]", "", title)
-    title = re.sub("-+", "-", title)
-    while title.startswith("."):
-        title = title[1:]
+    title = _invalid_chars_pattern.sub("", title)
+    title = _hyphens_pattern.sub("-", title)
+    title = title.lstrip(".")
     return title
 
 
