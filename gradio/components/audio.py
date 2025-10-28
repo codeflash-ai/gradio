@@ -85,9 +85,11 @@ class Audio(
         self,
         value: str | Path | tuple[int, np.ndarray] | Callable | None = None,
         *,
-        sources: list[Literal["upload", "microphone"]]
-        | Literal["upload", "microphone"]
-        | None = None,
+        sources: (
+            list[Literal["upload", "microphone"]]
+            | Literal["upload", "microphone"]
+            | None
+        ) = None,
         type: Literal["numpy", "filepath"] = "numpy",
         label: str | I18nData | None = None,
         every: Timer | float | None = None,
@@ -460,8 +462,10 @@ class Audio(
     ) -> str:
         if value is None:
             return ""
-        elif isinstance(value, (str, Path)):
-            return Path(value).name
+        elif type(value) is str:
+            return value.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+        elif isinstance(value, Path):
+            return value.name
         return "(audio)"
 
     def check_streamable(self):
