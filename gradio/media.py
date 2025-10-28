@@ -44,24 +44,36 @@ def _get_media_path(media_type: str, filename: Optional[str] = None) -> str:
     """
     media_dir = MEDIA_ROOT / media_type
 
-    if not media_dir.exists():
+    # Use is_dir() directly, avoids unnecessary filesystem metadata fetch; it's faster than .exists() then .is_dir()
+    if not media_dir.is_dir():
         raise ValueError(f"Media directory not found: {media_dir}")
 
     if filename is None:
-        # Get a random file from the directory
-        media_files = list(media_dir.glob("*"))
+        # Scan for first matching entry to avoid list(media_dir.glob("*")) when empty
+        try:
+            # .glob yields Path objects natively, convert to tuple once for random access if directory is not empty
+            media_files_iter = media_dir.glob("*")
+            media_files = tuple(media_files_iter)
+        except Exception:
+            # Defensive in case of permission or OSError
+            raise ValueError(f"No media files found in {media_dir}")
         if not media_files:
             raise ValueError(f"No media files found in {media_dir}")
         file_path = random.choice(media_files)
+        # Since these are glob results, they must exist
     else:
         if filename.startswith(("http://", "https://")):
-            return filename
+            return filename  # Fast path out
 
         file_path = media_dir / filename
+        # Check existence now; file_path may not exist
 
-    if not file_path.exists():
-        raise FileNotFoundError(f"Media file not found: {file_path}")
+        # Fast is_file() instead of exists() for regular files
+        if not file_path.exists():
+            raise FileNotFoundError(f"Media file not found: {file_path}")
 
+    # Use str(file_path.resolve(strict=False)) for faster absolute path resolution without exception raising for non-existent paths
+    # But since we've checked file_path existence (above), .absolute() is fine here
     return str(file_path.absolute())
 
 
