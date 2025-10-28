@@ -171,6 +171,8 @@ class ORJSONResponse(JSONResponse):
 
     @staticmethod
     def _render(content: Any) -> bytes:
+        # Avoid using default=str when not necessary; however, behavioral preservation requires keeping it.
+        # The most efficient orjson call as required by logic.
         return orjson.dumps(
             content,
             option=orjson.OPT_SERIALIZE_NUMPY | orjson.OPT_PASSTHROUGH_DATETIME,
@@ -182,7 +184,12 @@ class ORJSONResponse(JSONResponse):
 
     @staticmethod
     def _render_str(content: Any) -> str:
-        return ORJSONResponse._render(content).decode("utf-8")
+        # Avoid extra variable assignment for decode step.
+        return orjson.dumps(
+            content,
+            option=orjson.OPT_SERIALIZE_NUMPY | orjson.OPT_PASSTHROUGH_DATETIME,
+            default=str,
+        ).decode("utf-8")
 
 
 def toorjson(value):
@@ -1488,13 +1495,10 @@ class App(FastAPI):
                                 # It's possible that the event_id has already been removed
                                 # for example, the user sent two duplicate `/cancel` requests.
                                 # The first one would have removed the event_id from pending_event_ids_session
-                                if (
-                                    message.event_id
-                                    in (
-                                        blocks._queue.pending_event_ids_session[
-                                            session_hash
-                                        ]
-                                    )
+                                if message.event_id in (
+                                    blocks._queue.pending_event_ids_session[
+                                        session_hash
+                                    ]
                                 ):
                                     blocks._queue.pending_event_ids_session[
                                         session_hash
