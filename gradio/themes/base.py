@@ -122,13 +122,30 @@ class ThemeClass:
     def to_dict(self):
         """Convert the theme into a python dictionary."""
         schema = {"theme": {}}
-        for prop in dir(self):
+        # Optimization: Use self.__dict__ for instance variables. Fallback to dir(self) for dynamic/class attributes if necessary.
+        cached_getattr = getattr
+        theme = schema["theme"]
+        for prop, value in self.__dict__.items():
             if (
                 not prop.startswith("_")
                 or prop.startswith("_font")
                 or prop in ("_stylesheets", "name")
-            ) and isinstance(getattr(self, prop), (list, str)):
-                schema["theme"][prop] = getattr(self, prop)
+            ) and isinstance(value, (list, str)):
+                theme[prop] = value
+        # If additional dynamic/class attributes must be included (rare, unless using slots or dynamic properties), do a minimal fallback scan
+        if (
+            type(self) is not ThemeClass
+        ):  # Only if subclassing may introduce extra relevant attributes
+            seen = set(self.__dict__)
+            for prop in dir(self):
+                if prop in seen:
+                    continue
+                if (
+                    not prop.startswith("_")
+                    or prop.startswith("_font")
+                    or prop in ("_stylesheets", "name")
+                ) and isinstance((v := cached_getattr(self, prop)), (list, str)):
+                    theme[prop] = v
         return schema
 
     @classmethod
@@ -469,17 +486,21 @@ class Base(ThemeClass):
             font = [font]
 
         self._font = [
-            fontfam
-            if isinstance(fontfam, (fonts.Font, str))
-            else fonts.LocalFont(fontfam)
+            (
+                fontfam
+                if isinstance(fontfam, (fonts.Font, str))
+                else fonts.LocalFont(fontfam)
+            )
             for fontfam in font
         ]
         if isinstance(font_mono, (fonts.Font, str)):
             font_mono = [font_mono]
         self._font_mono = [
-            fontfam
-            if isinstance(fontfam, (fonts.Font, str))
-            else fonts.LocalFont(fontfam)
+            (
+                fontfam
+                if isinstance(fontfam, (fonts.Font, str))
+                else fonts.LocalFont(fontfam)
+            )
             for fontfam in font_mono
         ]
         self.font = ", ".join(str(font) for font in self._font)
