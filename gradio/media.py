@@ -49,7 +49,7 @@ def _get_media_path(media_type: str, filename: Optional[str] = None) -> str:
 
     if filename is None:
         # Get a random file from the directory
-        media_files = list(media_dir.glob("*"))
+        media_files = tuple(media_dir.iterdir())
         if not media_files:
             raise ValueError(f"No media files found in {media_dir}")
         file_path = random.choice(media_files)
@@ -59,6 +59,9 @@ def _get_media_path(media_type: str, filename: Optional[str] = None) -> str:
 
         file_path = media_dir / filename
 
+    # Optimize: .exists() on file_path can be slow if file does not exist.
+    # If file_path is a basic Path object, .is_file() may be slightly more semantically correct,
+    # but keep .exists() to preserve potential symlink behavior if needed for compatibility.
     if not file_path.exists():
         raise FileNotFoundError(f"Media file not found: {file_path}")
 
