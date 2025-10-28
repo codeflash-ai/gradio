@@ -18,6 +18,8 @@ from typer import Argument, Option
 
 from gradio.analytics import custom_component_analytics
 
+_VERSION_REGEX = re.compile(r"-(\d+\.\d+\.\d+[a-zA-Z]*\d*)-")
+
 colors = ["red", "yellow", "green", "blue", "indigo", "purple", "pink", "gray"]
 
 PYPI_REGISTER_URL = "https://pypi.org/account/register/"
@@ -32,7 +34,7 @@ def _ignore(_src, names):
 
 
 def _get_version_from_file(dist_file: Path) -> str | None:
-    match = re.search(r"-(\d+\.\d+\.\d+[a-zA-Z]*\d*)-", dist_file.name)
+    match = _VERSION_REGEX.search(dist_file.name)
     if match:
         return match.group(1)
     return None
@@ -70,7 +72,8 @@ def _publish(
     dist_dir: Annotated[
         Path,
         Argument(help=f"Path to the wheel directory. Default is {Path('.') / 'dist'}"),
-    ] = Path(".") / "dist",
+    ] = Path(".")
+    / "dist",
     upload_pypi: Annotated[bool, Option(help="Whether to upload to PyPI.")] = True,
     pypi_username: Annotated[str, Option(help="The username for PyPI.")] = "",
     pypi_password: Annotated[str, Option(help="The password for PyPI.")] = "",
