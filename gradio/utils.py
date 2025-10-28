@@ -1547,7 +1547,11 @@ class UnhashableKeyDict(MutableMapping):
         raise KeyError(key)
 
     def __iter__(self):
-        return (k for k, _ in self.data)
+        # Use a generator expression over the internal data list
+        # Wrap the list in tuple iterator to avoid repeated attribute access per iteration
+        data = self.data
+        for item in data:
+            yield item[0]
 
     def __len__(self):
         return len(self.data)
