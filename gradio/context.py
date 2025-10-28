@@ -48,7 +48,9 @@ def set_render_context(block: BlockContext | None):
 
 
 def get_blocks_context() -> BlocksConfig | None:
-    if LocalContext.renderable.get(None):
+    renderable = LocalContext.renderable.get(None)
+    if renderable:
         return LocalContext.blocks_config.get(None)
-    elif Context.root_block:
-        return Context.root_block.default_config
+    root = Context.root_block
+    if root:
+        return root.default_config
