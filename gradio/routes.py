@@ -182,17 +182,18 @@ class ORJSONResponse(JSONResponse):
 
     @staticmethod
     def _render_str(content: Any) -> str:
-        return ORJSONResponse._render(content).decode("utf-8")
+        s = ORJSONResponse._render(content)
+        s = (
+            s.replace(b"<", b"\\u003c")
+            .replace(b">", b"\\u003e")
+            .replace(b"&", b"\\u0026")
+            .replace(b"'", b"\\u0027")
+        )
+        return s.decode("utf-8")
 
 
 def toorjson(value):
-    return markupsafe.Markup(
-        ORJSONResponse._render_str(value)
-        .replace("<", "\\u003c")
-        .replace(">", "\\u003e")
-        .replace("&", "\\u0026")
-        .replace("'", "\\u0027")
-    )
+    return markupsafe.Markup(ORJSONResponse._render_str(value))
 
 
 templates = Jinja2Templates(directory=STATIC_TEMPLATE_LIB)
@@ -1488,13 +1489,10 @@ class App(FastAPI):
                                 # It's possible that the event_id has already been removed
                                 # for example, the user sent two duplicate `/cancel` requests.
                                 # The first one would have removed the event_id from pending_event_ids_session
-                                if (
-                                    message.event_id
-                                    in (
-                                        blocks._queue.pending_event_ids_session[
-                                            session_hash
-                                        ]
-                                    )
+                                if message.event_id in (
+                                    blocks._queue.pending_event_ids_session[
+                                        session_hash
+                                    ]
                                 ):
                                     blocks._queue.pending_event_ids_session[
                                         session_hash
