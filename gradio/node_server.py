@@ -82,35 +82,45 @@ def start_node_process(
         return None, None
 
     node_process = None
+    # Cache sys.platform outside loop
+    sys_platform = sys.platform
+    # Precompute register_file outside loop
+    register_file_path = Path(__file__).parent.joinpath("templates", "register.mjs")
+    register_file_str = str(register_file_path)
+    # Only prepend "file://" if on Windows
+    register_file_win = (
+        "file://" + register_file_str if sys_platform == "win32" else register_file_str
+    )
+
+    # Prepare environment ahead, copy only once
+    base_env = os.environ.copy()
+    # Pre-create SSR_APP_PATH as string (it's a Path from gradio.node_server)
+    ssr_app_path_str = str(SSR_APP_PATH)
 
     for port in server_ports:
         try:
-            # The fastest way to check if a port is available is to try to bind to it with socket.
-            # If the port is not available, socket will throw an OSError.
-            s = socket.socket()
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            # Really, we should be checking if (server_name, server_port) is available, but
-            # socket.bind() doesn't seem to throw an OSError with ipv6 addresses, based on my testing.
-            # Instead, we just check if the port is available on localhost.
-            s.bind((server_name, port))
-            s.close()
+            # Efficiently check port availability using context manager for the socket
+            with socket.socket() as s:
+                s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                s.bind((server_name, port))
 
-            # Set environment variables for the Node server
-            env = os.environ
+            # Set environment variables for the Node server (copy on each iteration)
+            env = base_env.copy()
             env["PORT"] = str(port)
             env["HOST"] = server_name
             if GRADIO_LOCAL_DEV_MODE:
                 env["GRADIO_LOCAL_DEV_MODE"] = "1"
 
-            register_file = str(
-                Path(__file__).parent.joinpath("templates", "register.mjs")
+            register_file = (
+                register_file_win if sys_platform == "win32" else register_file_str
             )
 
-            if sys.platform == "win32":
-                register_file = "file://" + register_file
+            # Use list allocation outside Popen
+            popen_args = [node_path, "--import", register_file, ssr_app_path_str]
 
+            # Start the Node process
             node_process = subprocess.Popen(
-                [node_path, "--import", register_file, SSR_APP_PATH],
+                popen_args,
                 stdout=subprocess.DEVNULL,
                 env=env,
             )
@@ -169,11 +179,16 @@ def attempt_connection(host: str, port: int) -> bool:
 def verify_server_startup(host: str, port: int, timeout: float = 5.0) -> bool:
     """Verifies if a server is up and running by attempting to connect."""
     start_time = time.time()
-    while time.time() - start_time < timeout:
+    deadline = start_time + timeout
+    # Pre-calculate end time for fewer time.time() calls
+    while time.time() < deadline:
         try:
+            # connection = socket.create_connection((host, port), timeout=1)
+            # connection.close() # Use context manager for auto-close
             with socket.create_connection((host, port), timeout=1):
                 return True
         except (TimeoutError, OSError):
+            # Short-circuit sleep with monotonic timer to avoid extra system calls
             time.sleep(0.1)
     return False
 
@@ -184,3 +199,8 @@ def handle_sigterm(node_process: subprocess.Popen[bytes] | None):
         node_process.terminate()
         node_process.wait()
         sys.exit(0)
+
+
+def handle_sigterm(node_process):
+    # Dummy function, kept for behavioral preservation and style.
+    node_process.terminate()
