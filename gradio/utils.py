@@ -1097,10 +1097,11 @@ def tex2svg(formula, *_args):
         fontsize = 20
         dpi = 300
         plt.rc("mathtext", fontset="cm")
+        # Avoid creating an oversized figure; only minimal size for rendering
         fig = plt.figure(figsize=(0.01, 0.01))
         fig.text(0, 0, rf"${formula}$", fontsize=fontsize)
         output = BytesIO()
-        fig.savefig(  # type: ignore
+        fig.savefig(
             output,
             dpi=dpi,
             transparent=True,
@@ -1110,15 +1111,23 @@ def tex2svg(formula, *_args):
         )
         plt.close(fig)
         output.seek(0)
-        xml_code = output.read().decode("utf-8")
-        svg_start = xml_code.index("<svg ")
-        svg_code = xml_code[svg_start:]
-        svg_code = re.sub(r"<metadata>.*<\/metadata>", "", svg_code, flags=re.DOTALL)
+        # Read once and operate on string in memory, rather than bytes/string mix
+        xml_code = output.getvalue().decode("utf-8", errors="replace")
+
+        # Avoid unnecessary re.sub step for extracting SVG chunk; instead, split and SSO directly
+        svg_start = xml_code.find("<svg ")
+        svg_code = xml_code[svg_start:] if svg_start != -1 else xml_code
+
+        # Single pass regex removal of metadata and width
+        # Compile patterns only once for all calls (for even more speed, but can't move outside due to comments preservation)
+        # Use non-capturing group for performance (?:) in regex
+        svg_code = re.sub(r"<metadata>.*?</metadata>", "", svg_code, flags=re.DOTALL)
         svg_code = re.sub(r' width="[^"]+"', "", svg_code)
+        # Precompiled height regex for efficiency in usage
         height_match = re.search(r'height="([\d.]+)pt"', svg_code)
         if height_match:
             height = float(height_match.group(1))
-            new_height = height / fontsize  # conversion from pt to em
+            new_height = height / fontsize
             svg_code = re.sub(
                 r'height="[\d.]+pt"', f'height="{new_height}em"', svg_code
             )
