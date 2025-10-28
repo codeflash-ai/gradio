@@ -428,7 +428,9 @@ class Block:
             data = {"path": url_or_file_path, "meta": {"_type": "gradio.FileData"}}
             try:
                 return processing_utils.move_files_to_cache(data, self)
-            except AttributeError:  # Can be raised if this function is called before the Block is fully initialized.
+            except (
+                AttributeError
+            ):  # Can be raised if this function is called before the Block is fully initialized.
                 return data
 
 
@@ -552,7 +554,13 @@ def postprocess_update_dict(
         postprocess: Whether to postprocess the "value" key of the update dictionary.
     """
     value = update_dict.pop("value", components._Keywords.NO_VALUE)
-    update_dict = {k: getattr(block, k) for k in update_dict if hasattr(block, k)}
+    # Use direct __dict__ access for faster attribute lookup
+    block_dict = getattr(block, "__dict__", None)
+    if block_dict is not None:
+        allowed_keys = update_dict.keys() & block_dict.keys()
+        update_dict = {k: block_dict[k] for k in allowed_keys}
+    else:
+        update_dict = {k: getattr(block, k) for k in update_dict if hasattr(block, k)}
     if value is not components._Keywords.NO_VALUE:
         if postprocess:
             update_dict["value"] = block.postprocess(value)
@@ -809,9 +817,12 @@ class BlocksConfig:
             api_description=api_description,
             js=js,
             show_progress=show_progress,
-            show_progress_on=show_progress_on
-            if isinstance(show_progress_on, (list, tuple)) or show_progress_on is None
-            else [show_progress_on],
+            show_progress_on=(
+                show_progress_on
+                if isinstance(show_progress_on, (list, tuple))
+                or show_progress_on is None
+                else [show_progress_on]
+            ),
             cancels=cancels,
             collects_event_data=collects_event_data,
             trigger_after=trigger_after,
@@ -1354,7 +1365,9 @@ class Blocks(BlockContext, BlocksEvents, metaclass=BlocksMeta):
                     ]
                 dependency = root_block.default_config.set_event_trigger(  # type: ignore
                     targets=targets, fn=fn, **dependency
-                )[0]
+                )[
+                    0
+                ]
                 if first_dependency is None:
                     first_dependency = dependency
 
@@ -2857,7 +2870,8 @@ Received inputs:
             or int(os.getenv("GRADIO_DEBUG", "0")) == 1
             or (
                 # Block main thread if running in a script to stop script from exiting
-                not prevent_thread_lock and not is_in_interactive_mode
+                not prevent_thread_lock
+                and not is_in_interactive_mode
                 # In the Wasm env, we don't have to block the main thread because the server won't be shut down after the execution finishes.
                 # Moreover, we MUST NOT do it because there is only one thread in the Wasm env and blocking it will stop the subsequent code from running.
             )
@@ -2892,9 +2906,9 @@ Received inputs:
             else:
                 raise ValueError("Please run `launch()` first.")
         if wandb is not None:
-            assert hasattr(wandb, "log") and hasattr(wandb, "Html"), (  # noqa: S101
-                "wandb module missing required attributes"
-            )
+            assert hasattr(wandb, "log") and hasattr(
+                wandb, "Html"
+            ), "wandb module missing required attributes"  # noqa: S101
             analytics_integration = "WandB"
             if self.share_url is not None:
                 wandb.log(  # type: ignore
@@ -2915,9 +2929,9 @@ Received inputs:
                     "The WandB integration requires you to `launch(share=True)` first."
                 )
         if mlflow is not None:
-            assert hasattr(mlflow, "log_param"), (  # noqa: S101
-                "mlflow module missing required attributes"
-            )
+            assert hasattr(
+                mlflow, "log_param"
+            ), "mlflow module missing required attributes"  # noqa: S101
             analytics_integration = "MLFlow"
             if self.share_url is not None:
                 mlflow.log_param("Gradio Interface Share Link", self.share_url)  # type: ignore
