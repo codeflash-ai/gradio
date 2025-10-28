@@ -79,6 +79,10 @@ if TYPE_CHECKING:  # Only import for type checking (is False at runtime).
     from gradio.routes import App, Request
     from gradio.state_holder import SessionState
 
+UNSAFE_PREFIXES = ("=", "+", "-", "@", "\t", "\n")
+
+UNSAFE_SEQUENCES = {",=", ",+", ",-", ",@", ",\t", ",\n"}
+
 P = ParamSpec("P")
 T = TypeVar("T")
 
@@ -787,12 +791,13 @@ def sanitize_value_for_csv(value: str | float) -> str | float:
     """
     if isinstance(value, (float, int)):
         return value
-    unsafe_prefixes = ["=", "+", "-", "@", "\t", "\n"]
-    unsafe_sequences = [",=", ",+", ",-", ",@", ",\t", ",\n"]
-    if any(value.startswith(prefix) for prefix in unsafe_prefixes) or any(
-        sequence in value for sequence in unsafe_sequences
-    ):
-        value = f"'{value}"
+    # Faster unsafe prefix checking using str.startswith with a tuple
+    if value.startswith(UNSAFE_PREFIXES):
+        return f"'{value}"
+    # Use set intersection for quick detection of any unsafe sequence
+    for sequence in UNSAFE_SEQUENCES:
+        if sequence in value:
+            return f"'{value}"
     return value
 
 
@@ -801,15 +806,18 @@ def sanitize_list_for_csv(values: list[Any]) -> list[Any]:
     Sanitizes a list of values (or a list of list of values) that is being written to a
     CSV file to prevent CSV injection attacks.
     """
-    sanitized_values = []
+    # Use list comprehension for fast, memory efficient iteration
+    result: list[Any] = []
+    append = result.append  # Localize method lookup for speed
     for value in values:
         if isinstance(value, list):
+            # Use generator to avoid inner list preallocation overhead
             sanitized_value = [sanitize_value_for_csv(v) for v in value]
-            sanitized_values.append(sanitized_value)
+            append(sanitized_value)
         else:
             sanitized_value = sanitize_value_for_csv(value)
-            sanitized_values.append(sanitized_value)
-    return sanitized_values
+            append(sanitized_value)
+    return result
 
 
 def append_unique_suffix(name: str, list_of_names: list[str]):
