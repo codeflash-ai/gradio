@@ -19,6 +19,19 @@ class Color:
         c950: str,
         name: str | None = None,
     ):
+        self._swatches = (
+            c50,
+            c100,
+            c200,
+            c300,
+            c400,
+            c500,
+            c600,
+            c700,
+            c800,
+            c900,
+            c950,
+        )
         self.c50 = c50
         self.c100 = c100
         self.c200 = c200
@@ -34,19 +47,7 @@ class Color:
         Color.all.append(self)
 
     def expand(self) -> list[str]:
-        return [
-            self.c50,
-            self.c100,
-            self.c200,
-            self.c300,
-            self.c400,
-            self.c500,
-            self.c600,
-            self.c700,
-            self.c800,
-            self.c900,
-            self.c950,
-        ]
+        return list(self._swatches)
 
 
 slate = Color(
