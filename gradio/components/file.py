@@ -231,9 +231,14 @@ class File(Component):
         if value is None:
             return ""
         elif isinstance(value, list):
-            return ", ".join([Path(file).name for file in value])
+            # Optimize by avoiding Path objects for file basename extraction
+            # This avoids Path(file).name which is (relatively) slow
+            return ", ".join(
+                [file.rsplit("/", 1)[-1].rsplit("\\", 1)[-1] for file in value]
+            )
         else:
-            return Path(value).name
+            # Avoid instantiating Path if not necessary
+            return value.rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
 
     def example_payload(self) -> Any:
         if self.file_count == "single":
