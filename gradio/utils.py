@@ -1812,4 +1812,4 @@ async def safe_aclose_iterator(iterator, timeout=60.0, retry_interval=0.05):
                 else:
                     raise
     else:
-        iterator.aclose()
+        await iterator.aclose()
