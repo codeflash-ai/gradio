@@ -135,7 +135,15 @@ class Model3D(Component):
         return FileData(path=str(value), orig_name=Path(value).name)
 
     def process_example(self, value: str | Path | None) -> str:
-        return Path(value).name if value else ""
+        if not value:
+            return ""
+        if isinstance(value, Path):
+            return value.name
+        # For string paths, avoid creating Path object by using string operations
+        name = value.rsplit("/", 1)[-1]
+        if "\\" in name:
+            name = name.rsplit("\\", 1)[-1]
+        return name
 
     def example_payload(self):
         return handle_file(
