@@ -159,35 +159,45 @@ class Tunnel:
         log = []
         url = ""
 
+        # Pre-compile the regex for efficiency on repeated use
+        start_proxy_re = re.compile(r"start proxy success: (.+)\n")
+
         def _raise_tunnel_error():
             log_text = "\n".join(log)
             print(log_text, file=sys.stderr)
             raise ValueError(f"{TUNNEL_ERROR_MESSAGE}\n{log_text}")
 
+        assert self.proc is not None  # noqa: S101
+        proc_stdout = self.proc.stdout
         while url == "":
             # check for timeout and log
             if time.time() - start_timestamp >= TUNNEL_TIMEOUT_SECONDS:
                 _raise_tunnel_error()
 
-            assert self.proc is not None  # noqa: S101
-            if self.proc.stdout is None:
+            if proc_stdout is None:
+                # Consume no CPU while waiting for stdout to be available
+                time.sleep(0.01)
                 continue
 
-            line = self.proc.stdout.readline()
-            line = line.decode("utf-8")
-
-            if line == "":
+            line_bytes = proc_stdout.readline()
+            if not line_bytes:
+                # Avoid unnecessary decoding if no data
                 continue
+            line = line_bytes.decode("utf-8")
 
-            log.append(line.strip())
+            log_line = line.strip()
+            if not log_line:
+                continue
+            log.append(log_line)
 
-            if "start proxy success" in line:
-                result = re.search("start proxy success: (.+)\n", line)
+            # Do substring lookups on `log_line` which is always stripped and non-empty
+            if "start proxy success" in log_line:
+                result = start_proxy_re.search(line)
                 if result is None:
                     _raise_tunnel_error()
                 else:
                     url = result.group(1)
-            elif "login to server failed" in line:
+            elif "login to server failed" in log_line:
                 _raise_tunnel_error()
 
         return url
