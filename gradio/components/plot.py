@@ -154,12 +154,12 @@ class AltairPlot:
     @staticmethod
     def create_legend(position, title):
         if position == "none":
-            legend = None
-        else:
-            position = {"orient": position} if position else {}
-            legend = {"title": title, **position}
+            return None
 
-        return legend
+        if not position:
+            return {"title": title}
+
+        return {"title": title, "orient": position}
 
     @staticmethod
     def create_scale(limit):
