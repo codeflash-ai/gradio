@@ -706,9 +706,11 @@ class Queue:
                     self.send_message(
                         event,
                         ProcessStartsMessage(
-                            eta=self.process_time_per_fn[fn].avg_time
-                            if fn in self.process_time_per_fn
-                            else None
+                            eta=(
+                                self.process_time_per_fn[fn].avg_time
+                                if fn in self.process_time_per_fn
+                                else None
+                            )
                         ),
                     )
                     awake_events.append(event)
@@ -798,16 +800,22 @@ class Queue:
                         self.send_message(
                             event,
                             ProcessGeneratingMessage(
-                                msg=ServerMessage.process_generating
-                                if not event.streaming
-                                else ServerMessage.process_streaming,
+                                msg=(
+                                    ServerMessage.process_generating
+                                    if not event.streaming
+                                    else ServerMessage.process_streaming
+                                ),
                                 output=old_response,
                                 success=old_response is not None,
-                                time_limit=None
-                                if not fn.time_limit
-                                else cast(int, fn.time_limit) - first_iteration
-                                if event.streaming
-                                else None,
+                                time_limit=(
+                                    None
+                                    if not fn.time_limit
+                                    else (
+                                        cast(int, fn.time_limit) - first_iteration
+                                        if event.streaming
+                                        else None
+                                    )
+                                ),
                             ),
                         )
                     awake_events = [event for event in awake_events if event.alive]
@@ -983,6 +991,7 @@ def process_validation_response(
     else:
         validation_data.append({"is_valid": True, "message": ""})
 
-    return all(
-        x.get("is_valid", None) is True for x in validation_data
-    ), validation_data
+    return (
+        all(x.get("is_valid", None) is True for x in validation_data),
+        validation_data,
+    )
