@@ -78,7 +78,7 @@ class I18nData:
         Convert the I18nData object to a JSON-serializable dictionary.
         This is used by the default Python JSON serializer.
         """
-        return self.to_dict()
+        return {"__type__": self._type, "key": self.key}
 
 
 class I18n:
