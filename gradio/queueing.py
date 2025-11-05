@@ -706,9 +706,11 @@ class Queue:
                     self.send_message(
                         event,
                         ProcessStartsMessage(
-                            eta=self.process_time_per_fn[fn].avg_time
-                            if fn in self.process_time_per_fn
-                            else None
+                            eta=(
+                                self.process_time_per_fn[fn].avg_time
+                                if fn in self.process_time_per_fn
+                                else None
+                            )
                         ),
                     )
                     awake_events.append(event)
@@ -798,16 +800,22 @@ class Queue:
                         self.send_message(
                             event,
                             ProcessGeneratingMessage(
-                                msg=ServerMessage.process_generating
-                                if not event.streaming
-                                else ServerMessage.process_streaming,
+                                msg=(
+                                    ServerMessage.process_generating
+                                    if not event.streaming
+                                    else ServerMessage.process_streaming
+                                ),
                                 output=old_response,
                                 success=old_response is not None,
-                                time_limit=None
-                                if not fn.time_limit
-                                else cast(int, fn.time_limit) - first_iteration
-                                if event.streaming
-                                else None,
+                                time_limit=(
+                                    None
+                                    if not fn.time_limit
+                                    else (
+                                        cast(int, fn.time_limit) - first_iteration
+                                        if event.streaming
+                                        else None
+                                    )
+                                ),
                             ),
                         )
                     awake_events = [event for event in awake_events if event.alive]
@@ -959,19 +967,34 @@ def process_validation_response(
 
     param_names = []
     if fn and fn.fn:
-        sig = inspect.signature(fn.fn)
-        param_names = list(sig.parameters.keys())
+        # Cache param_names only if needed (used below)
+        param_names = list(inspect.signature(fn.fn).parameters)
 
     if isinstance(validation_response, list):
+        get_type = dict.get  # localize for faster attribute access
+        valid_tpl = {"is_valid": True, "message": ""}
+
+        # Pre-calculate param count for fewer lookups
+        param_count = len(param_names)
+        append = validation_data.append  # localize for loop speed
+
         for i, data in enumerate(validation_response):
-            if isinstance(data, dict) and data.get("__type__", None) == "validate":
-                param_name = (
-                    param_names[i] if i < len(param_names) else f"parameter_{i}"
-                )
-                data_with_name = {**data, "parameter_name": param_name}
-                validation_data.append(data_with_name)
+            if (
+                isinstance(data, dict)
+                and get_type(data, "__type__", None) == "validate"
+            ):
+                # Avoid format string call for perf unless needed
+                param_name = param_names[i] if i < param_count else "parameter_%d" % i
+                # Use explicit dictionary creation for speed
+                data_with_name = data.copy()
+                data_with_name["parameter_name"] = param_name
+                append(data_with_name)
             else:
-                validation_data.append({"is_valid": True, "message": ""})
+                append(valid_tpl)
+    # Note: The following branch is only triggered if validation_response is NOT a list
+    # and validation_data is a dict (but validation_data is always a list).
+    # The original code has a logical bug here (validation_data is always list).
+    # To preserve behavior exactly, leave as is.
 
     elif (
         isinstance(validation_data, dict)
@@ -983,6 +1006,11 @@ def process_validation_response(
     else:
         validation_data.append({"is_valid": True, "message": ""})
 
-    return all(
-        x.get("is_valid", None) is True for x in validation_data
-    ), validation_data
+    # Use generator and explicit loop for speed
+    valid = True
+    for x in validation_data:
+        if x.get("is_valid", None) is not True:
+            valid = False
+            break
+
+    return valid, validation_data
