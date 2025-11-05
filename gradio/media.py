@@ -44,25 +44,31 @@ def _get_media_path(media_type: str, filename: Optional[str] = None) -> str:
     """
     media_dir = MEDIA_ROOT / media_type
 
-    if not media_dir.exists():
-        raise ValueError(f"Media directory not found: {media_dir}")
+    # Avoid repeated .exists() disk hit by using try/except on scandir
+    from os import scandir
 
     if filename is None:
-        # Get a random file from the directory
-        media_files = list(media_dir.glob("*"))
+        # Get a random file from the directory, with direct scandir for performance
+        try:
+            # List files in directory efficiently
+            media_files = [
+                entry.path for entry in scandir(media_dir) if entry.is_file()
+            ]
+        except FileNotFoundError:
+            raise ValueError(f"Media directory not found: {media_dir}") from None
         if not media_files:
             raise ValueError(f"No media files found in {media_dir}")
-        file_path = random.choice(media_files)
+        file_path_str = random.choice(media_files)  # type: ignore
     else:
         if filename.startswith(("http://", "https://")):
             return filename
 
         file_path = media_dir / filename
+        if not file_path.exists():  # preserves error message/behavior
+            raise FileNotFoundError(f"Media file not found: {file_path}")
+        file_path_str = str(file_path.absolute())
 
-    if not file_path.exists():
-        raise FileNotFoundError(f"Media file not found: {file_path}")
-
-    return str(file_path.absolute())
+    return file_path_str
 
 
 def get_image(filename: Optional[str] = None) -> str:
