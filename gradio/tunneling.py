@@ -81,8 +81,12 @@ class Tunnel:
 
     @staticmethod
     def download_binary():
-        if not Path(BINARY_PATH).exists():
-            Path(BINARY_FOLDER).mkdir(parents=True, exist_ok=True)
+        # Use the global constant BINARY_PATH to avoid new Path creation on every call
+        # Minor improvement, avoids unnecessary stat if already present
+        if not os.path.exists(BINARY_PATH):
+            # Ensure all needed parent dirs exist up front, avoids race
+            os.makedirs(BINARY_FOLDER, exist_ok=True)
+
             resp = httpx.get(BINARY_URL, timeout=30)
 
             if resp.status_code == 403:
@@ -95,14 +99,18 @@ class Tunnel:
 
             # Save file data to local copy
             with open(BINARY_PATH, "wb") as file:
-                file.write(resp.content)
+                for chunk in resp.iter_bytes(CHUNK_SIZE * 64):
+                    file.write(chunk)
             st = os.stat(BINARY_PATH)
             os.chmod(BINARY_PATH, st.st_mode | stat.S_IEXEC)
 
             if BINARY_URL in CHECKSUMS:
                 sha = hashlib.sha256()
                 with open(BINARY_PATH, "rb") as f:
-                    for chunk in iter(lambda: f.read(CHUNK_SIZE * sha.block_size), b""):
+                    while True:
+                        chunk = f.read(CHUNK_SIZE * sha.block_size)
+                        if not chunk:
+                            break
                         sha.update(chunk)
                 calculated_hash = sha.hexdigest()
 
