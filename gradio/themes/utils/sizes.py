@@ -7,6 +7,15 @@ class Size:
     def __init__(
         self, xxs: str, xs: str, sm: str, md: str, lg: str, xl: str, xxl: str, name=None
     ):
+        self._values = (
+            xxs,
+            xs,
+            sm,
+            md,
+            lg,
+            xl,
+            xxl,
+        )  # Store values in a tuple for efficient access
         self.xxs = xxs
         self.xs = xs
         self.sm = sm
@@ -18,7 +27,8 @@ class Size:
         Size.all.append(self)
 
     def expand(self) -> list[str]:
-        return [self.xxs, self.xs, self.sm, self.md, self.lg, self.xl, self.xxl]
+        # Leverage stored tuple for faster list conversion
+        return list(self._values)
 
 
 radius_none = Size(
