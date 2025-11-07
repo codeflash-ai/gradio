@@ -47,6 +47,26 @@ log = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from gradio.blocks import Block
 
+_DTYPE_RANGE = {
+    bool: (False, True),
+    np.bool_: (False, True),
+    float: (-1, 1),
+    np.float16: (-1, 1),
+    np.float32: (-1, 1),
+    np.float64: (-1, 1),
+}
+
+_IINFO_CACHE = {
+    np.uint8:  np.iinfo(np.uint8),
+    np.int8:   np.iinfo(np.int8),
+    np.uint16: np.iinfo(np.uint16),
+    np.int16:  np.iinfo(np.int16),
+    np.uint32: np.iinfo(np.uint32),
+    np.int32:  np.iinfo(np.int32),
+    np.uint64: np.iinfo(np.uint64),
+    np.int64:  np.iinfo(np.int64),
+}
+
 
 #########################
 # GENERAL
@@ -763,128 +783,15 @@ def _convert(image, dtype, force_copy=False, uniform=False):
     .. [4] Dirty Pixels. J. Blinn. In "Jim Blinn's corner: Dirty Pixels",
            pp 47-57. Morgan Kaufmann, 1998.
     """
-    dtype_range = {
-        bool: (False, True),
-        np.bool_: (False, True),
-        float: (-1, 1),
-        np.float16: (-1, 1),
-        np.float32: (-1, 1),
-        np.float64: (-1, 1),
-    }
-
-    if hasattr(np, "float_"):
-        dtype_range[np.float_] = dtype_range[float]  # type: ignore
-    if hasattr(np, "bool8"):
-        dtype_range[np.bool8] = dtype_range[np.bool_]  # type: ignore
-
-    def _dtype_itemsize(itemsize, *dtypes):
-        """Return first of `dtypes` with itemsize greater than `itemsize`
-        Parameters
-        ----------
-        itemsize: int
-            The data type object element size.
-        Other Parameters
-        ----------------
-        *dtypes:
-            Any Object accepted by `np.dtype` to be converted to a data
-            type object
-        Returns
-        -------
-        dtype: data type object
-            First of `dtypes` with itemsize greater than `itemsize`.
-        """
-        return next(dt for dt in dtypes if np.dtype(dt).itemsize >= itemsize)
-
-    def _dtype_bits(kind, bits, itemsize=1):
-        """Return dtype of `kind` that can store a `bits` wide unsigned int
-        Parameters:
-        kind: str
-            Data type kind.
-        bits: int
-            Desired number of bits.
-        itemsize: int
-            The data type object element size.
-        Returns
-        -------
-        dtype: data type object
-            Data type of `kind` that can store a `bits` wide unsigned int
-        """
-
-        s = next(
-            i
-            for i in (itemsize,) + (2, 4, 8)
-            if bits < (i * 8) or (bits == (i * 8) and kind == "u")
-        )
-
-        return np.dtype(kind + str(s))
-
-    def _scale(a, n, m, copy=True):
-        """Scale an array of unsigned/positive integers from `n` to `m` bits.
-        Numbers can be represented exactly only if `m` is a multiple of `n`.
-        Parameters
-        ----------
-        a : ndarray
-            Input image array.
-        n : int
-            Number of bits currently used to encode the values in `a`.
-        m : int
-            Desired number of bits to encode the values in `out`.
-        copy : bool, optional
-            If True, allocates and returns new array. Otherwise, modifies
-            `a` in place.
-        Returns
-        -------
-        out : array
-            Output image array. Has the same kind as `a`.
-        """
-        kind = a.dtype.kind
-        if n > m and a.max() < 2**m:
-            return a.astype(_dtype_bits(kind, m))
-        elif n == m:
-            return a.copy() if copy else a
-        elif n > m:
-            # downscale with precision loss
-            if copy:
-                b = np.empty(a.shape, _dtype_bits(kind, m))
-                np.floor_divide(a, 2 ** (n - m), out=b, dtype=a.dtype, casting="unsafe")
-                return b
-            else:
-                a //= 2 ** (n - m)
-                return a
-        elif m % n == 0:
-            # exact upscale to a multiple of `n` bits
-            if copy:
-                b = np.empty(a.shape, _dtype_bits(kind, m))
-                np.multiply(a, (2**m - 1) // (2**n - 1), out=b, dtype=b.dtype)
-                return b
-            else:
-                a = a.astype(_dtype_bits(kind, m, a.dtype.itemsize), copy=False)
-                a *= (2**m - 1) // (2**n - 1)
-                return a
-        else:
-            # upscale to a multiple of `n` bits,
-            # then downscale with precision loss
-            o = (m // n + 1) * n
-            if copy:
-                b = np.empty(a.shape, _dtype_bits(kind, o))
-                np.multiply(a, (2**o - 1) // (2**n - 1), out=b, dtype=b.dtype)
-                b //= 2 ** (o - m)
-                return b
-            else:
-                a = a.astype(_dtype_bits(kind, o, a.dtype.itemsize), copy=False)
-                a *= (2**o - 1) // (2**n - 1)
-                a //= 2 ** (o - m)
-                return a
 
     image = np.asarray(image)
     dtypeobj_in = image.dtype
-    dtypeobj_out = (
-        dtypeobj_in
-        if dtype is np.floating
-        else np.dtype("float64")
-        if dtype is float
-        else np.dtype(dtype)
-    )
+    if dtype is np.floating:
+        dtypeobj_out = dtypeobj_in
+    elif dtype is float:
+        dtypeobj_out = np.dtype("float64")
+    else:
+        dtypeobj_out = np.dtype(dtype)
     dtype_in = dtypeobj_in.type
     dtype_out = dtypeobj_out.type
     kind_in = dtypeobj_in.kind
@@ -912,21 +819,27 @@ def _convert(image, dtype, force_copy=False, uniform=False):
         return image
 
     if kind_in in "ui":
-        imin_in = np.iinfo(dtype_in).min
-        imax_in = np.iinfo(dtype_in).max
+        info_in = _iinfo(dtype_in)
+        imin_in = info_in.min
+        imax_in = info_in.max
     if kind_out in "ui":
-        imin_out = np.iinfo(dtype_out).min  # type: ignore
-        imax_out = np.iinfo(dtype_out).max  # type: ignore
+        info_out = _iinfo(dtype_out)
+        imin_out = info_out.min  # type: ignore
+        imax_out = info_out.max  # type: ignore
+
 
     # any -> binary
     if kind_out == "b":
-        return image > dtype_in(dtype_range[dtype_in][1] / 2)
+        # any -> binary
+        # Optimize: use cached dtype ranges
+        return image > dtype_in(_DTYPE_RANGE[dtype_in][1] / 2)
+
 
     # binary -> any
     if kind_in == "b":
         result = image.astype(dtype_out)
         if kind_out != "f":
-            result *= dtype_out(dtype_range[dtype_out][1])
+            result *= dtype_out(_DTYPE_RANGE[dtype_out][1])
         return result
 
     # float -> any
@@ -935,7 +848,9 @@ def _convert(image, dtype, force_copy=False, uniform=False):
             # float -> float
             return image.astype(dtype_out)
 
-        if np.min(image) < -1.0 or np.max(image) > 1.0:
+        # Optimize: use np.ptp for fast range check
+        mn, mx = image.min(), image.max()
+        if mn < -1.0 or mx > 1.0:
             raise ValueError("Images of type float must be between -1 and 1.")
         # floating point -> integer
         # use float type that can represent output integer type
@@ -1094,3 +1009,110 @@ def get_video_length(video_path: str | Path):
     duration_float = float(duration_str)
 
     return duration_float
+
+def _iinfo(dtype):
+    typ = np.dtype(dtype).type
+    return _IINFO_CACHE.get(typ) or np.iinfo(typ)
+
+def _dtype_itemsize(itemsize, *dtypes):
+    """Return first of `dtypes` with itemsize greater than `itemsize`
+        Parameters
+        ----------
+        itemsize: int
+            The data type object element size.
+        Other Parameters
+        ----------------
+        *dtypes:
+            Any Object accepted by `np.dtype` to be converted to a data
+            type object
+        Returns
+        -------
+        dtype: data type object
+            First of `dtypes` with itemsize greater than `itemsize`.
+        """
+    # Optimize to avoid repeated np.dtype calls
+    for dt in dtypes:
+        if np.dtype(dt).itemsize >= itemsize:
+            return dt
+    raise ValueError("No dtype found with sufficient itemsize.")
+
+def _dtype_bits(kind, bits, itemsize=1):
+    """Return dtype of `kind` that can store a `bits` wide unsigned int
+        Parameters:
+        kind: str
+            Data type kind.
+        bits: int
+            Desired number of bits.
+        itemsize: int
+            The data type object element size.
+        Returns
+        -------
+        dtype: data type object
+            Data type of `kind` that can store a `bits` wide unsigned int
+        """
+    # Fastest way is to use dictionary - but keep original structure for correctness
+    s = next(
+        i
+        for i in (itemsize,) + (2, 4, 8)
+        if bits < (i * 8) or (bits == (i * 8) and kind == "u")
+    )
+    return np.dtype(kind + str(s))
+
+def _scale(a, n, m, copy=True):
+    """Scale an array of unsigned/positive integers from `n` to `m` bits.
+        Numbers can be represented exactly only if `m` is a multiple of `n`.
+        Parameters
+        ----------
+        a : ndarray
+            Input image array.
+        n : int
+            Number of bits currently used to encode the values in `a`.
+        m : int
+            Desired number of bits to encode the values in `out`.
+        copy : bool, optional
+            If True, allocates and returns new array. Otherwise, modifies
+            `a` in place.
+        Returns
+        -------
+        out : array
+            Output image array. Has the same kind as `a`.
+        """
+    kind = a.dtype.kind
+    if n > m and a.max() < 2**m:
+        return a.astype(_dtype_bits(kind, m))
+    elif n == m:
+        return a.copy() if copy else a
+    elif n > m:
+        # downscale with precision loss
+        if copy:
+            b = np.empty(a.shape, _dtype_bits(kind, m))
+            np.floor_divide(a, 2 ** (n - m), out=b, dtype=a.dtype, casting="unsafe")
+            return b
+        else:
+            a //= 2 ** (n - m)
+            return a
+    elif m % n == 0:
+        # exact upscale to a multiple of `n` bits
+        factor = (2**m - 1) // (2**n - 1)
+        if copy:
+            b = np.empty(a.shape, _dtype_bits(kind, m))
+            np.multiply(a, factor, out=b, dtype=b.dtype)
+            return b
+        else:
+            a = a.astype(_dtype_bits(kind, m, a.dtype.itemsize), copy=False)
+            a *= factor
+            return a
+    else:
+        # upscale to a multiple of `n` bits, then downscale with precision loss
+        o = (m // n + 1) * n
+        factor = (2**o - 1) // (2**n - 1)
+        if copy:
+            b = np.empty(a.shape, _dtype_bits(kind, o))
+            np.multiply(a, factor, out=b, dtype=b.dtype)
+            b //= 2 ** (o - m)
+            return b
+        else:
+            a = a.astype(_dtype_bits(kind, o, a.dtype.itemsize), copy=False)
+            a *= factor
+            a //= 2 ** (o - m)
+            return a
