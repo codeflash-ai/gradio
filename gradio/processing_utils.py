@@ -591,7 +591,53 @@ async def async_move_files_to_cache(
 
     if isinstance(data, (GradioRootModel, GradioModel)):
         data = data.model_dump()
-    return await client_utils.async_traverse(
+
+    # Use asyncio.gather to process file objects concurrently
+    async def _traverse_with_concurrency(obj: Any, func, predicate) -> Any:
+        if isinstance(obj, dict):
+            tasks = []
+            task_keys = []
+            result = {}
+
+            for k, v in obj.items():
+                if predicate(v):
+                    tasks.append(func(v))
+                    task_keys.append(k)
+                elif isinstance(v, (dict, list)):
+                    result[k] = await _traverse_with_concurrency(v, func, predicate)
+                else:
+                    result[k] = v
+
+            if tasks:
+                processed = await asyncio.gather(*tasks)
+                for k, processed_v in zip(task_keys, processed):
+                    result[k] = processed_v
+            return result
+        elif isinstance(obj, list):
+            tasks = []
+            task_indices = []
+            result = []
+
+            for i, v in enumerate(obj):
+                if predicate(v):
+                    tasks.append(func(v))
+                    task_indices.append(i)
+                elif isinstance(v, (dict, list)):
+                    result.append(await _traverse_with_concurrency(v, func, predicate))
+                else:
+                    result.append(v)
+
+            if tasks:
+                processed = await asyncio.gather(*tasks)
+                for i, processed_v in zip(task_indices, processed):
+                    while len(result) <= i:
+                        result.append(None)
+                    result[i] = processed_v
+            return result
+        else:
+            return obj
+
+    return await _traverse_with_concurrency(
         data, _move_to_cache, client_utils.is_file_obj_with_meta
     )
 
@@ -881,9 +927,7 @@ def _convert(image, dtype, force_copy=False, uniform=False):
     dtypeobj_out = (
         dtypeobj_in
         if dtype is np.floating
-        else np.dtype("float64")
-        if dtype is float
-        else np.dtype(dtype)
+        else np.dtype("float64") if dtype is float else np.dtype(dtype)
     )
     dtype_in = dtypeobj_in.type
     dtype_out = dtypeobj_out.type
