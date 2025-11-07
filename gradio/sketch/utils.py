@@ -5,6 +5,8 @@ from typing import Union
 
 import huggingface_hub
 
+_extract_type_hint_cache = {}
+
 code_model = "Qwen/Qwen2.5-Coder-32B-Instruct"
 
 
@@ -112,7 +114,14 @@ def get_value_description(component_class, config):
     if value_description is not None:
         return value_description
 
-    value_type_hint = extract_value_type_hint(component_class.__init__)
+    init_func = component_class.__init__
+    key = id(init_func)
+    if key in _extract_type_hint_cache:
+        value_type_hint = _extract_type_hint_cache[key]
+    else:
+        value_type_hint = extract_value_type_hint(init_func)
+        _extract_type_hint_cache[key] = value_type_hint
+
     all_hints = value_type_hint.split(" | ")
     if "None" in all_hints:
         all_hints.remove("None")
