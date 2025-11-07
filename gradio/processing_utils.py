@@ -195,14 +195,16 @@ def detect_audio_format(data: bytes) -> str:
     Returns:
         Detected file extension with dot (e.g., ".wav", ".mp3") or empty string if not detected
     """
+    data_len = len(data)
+
     # Check WAV format (RIFF header)
-    if len(data) >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WAVE":
+    if data_len >= 12 and data[:4] == b"RIFF" and data[8:12] == b"WAVE":
         return ".wav"
     # Check MP3 format (ID3 tag)
-    elif len(data) >= 3 and data[:3] == b"ID3":  # noqa: SIM114
+    if data_len >= 3 and data[:3] == b"ID3":  # noqa: SIM114
         return ".mp3"
     # Check MP3 format (sync frame)
-    elif len(data) >= 2 and data[:2] == b"\xff\xfb":
+    if data_len >= 2 and data[:2] == b"\xff\xfb":
         return ".mp3"
     return ""
 
@@ -881,9 +883,7 @@ def _convert(image, dtype, force_copy=False, uniform=False):
     dtypeobj_out = (
         dtypeobj_in
         if dtype is np.floating
-        else np.dtype("float64")
-        if dtype is float
-        else np.dtype(dtype)
+        else np.dtype("float64") if dtype is float else np.dtype(dtype)
     )
     dtype_in = dtypeobj_in.type
     dtype_out = dtypeobj_out.type
