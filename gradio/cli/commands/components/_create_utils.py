@@ -248,9 +248,10 @@ def _get_component_code(template: str | None) -> ComponentFiles:
     if template in OVERRIDES:
         return OVERRIDES[template]
     else:
+        template_lower = template.lower()
         return ComponentFiles(
-            python_file_name=f"{template.lower()}.py",
-            js_dir=template.lower(),
+            python_file_name=f"{template_lower}.py",
+            js_dir=template_lower,
             template=template,
         )
 
