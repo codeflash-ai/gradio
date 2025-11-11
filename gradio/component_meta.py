@@ -8,6 +8,7 @@ from pathlib import Path
 
 from jinja2 import Template
 
+from gradio.context import LocalContext as _LocalContext
 from gradio.events import EventListener
 from gradio.exceptions import ComponentDefinitionError
 from gradio.utils import no_raise_exception
@@ -84,9 +85,11 @@ INTERFACE_TEMPLATE = '''
 def create_pyi(class_code: str, events: list[EventListener | str]):
     template = Template(INTERFACE_TEMPLATE)
     event_template = [
-        e
-        if isinstance(e, EventListener)
-        else EventListener(event_name=e, event_specific_args=[])
+        (
+            e
+            if isinstance(e, EventListener)
+            else EventListener(event_name=e, event_specific_args=[])
+        )
         for e in events
     ]
     return template.render(events=event_template, contents=class_code)
@@ -155,11 +158,10 @@ def create_or_modify_pyi(
 
 
 def get_local_contexts():
-    from gradio.context import LocalContext
 
     return (
-        LocalContext.in_event_listener.get(False),
-        LocalContext.renderable.get(None) is not None,
+        _LocalContext.in_event_listener.get(False),
+        _LocalContext.renderable.get(None) is not None,
     )
 
 
