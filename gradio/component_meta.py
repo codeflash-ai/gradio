@@ -82,14 +82,24 @@ INTERFACE_TEMPLATE = '''
 
 
 def create_pyi(class_code: str, events: list[EventListener | str]):
-    template = Template(INTERFACE_TEMPLATE)
-    event_template = [
-        e
-        if isinstance(e, EventListener)
-        else EventListener(event_name=e, event_specific_args=[])
-        for e in events
-    ]
-    return template.render(events=event_template, contents=class_code)
+    # Cache the TEMPLATE object for performance, so it's not recreated on each function call
+    # Use function attribute to avoid module-level global state
+    if not hasattr(create_pyi, "_template"):
+        from gradio.component_meta import \
+            INTERFACE_TEMPLATE  # Lazy local import for faster module loading
+
+        create_pyi._template = Template(INTERFACE_TEMPLATE)
+    template = create_pyi._template
+
+    # Use list comprehension but preallocate results for slight speedup
+    result = []
+    append = result.append
+    for e in events:
+        if isinstance(e, EventListener):
+            append(e)
+        else:
+            append(EventListener(event_name=e, event_specific_args=[]))
+    return template.render(events=result, contents=class_code)
 
 
 def extract_class_source_code(
