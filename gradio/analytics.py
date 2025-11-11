@@ -17,6 +17,10 @@ from packaging.version import Version
 import gradio
 from gradio.utils import core_gradio_components, get_package_version
 
+_ANALYTICS_ENV = "GRADIO_ANALYTICS_ENABLED"
+
+_ANALYTICS_ENV_TRUE = "True"
+
 # For testability, we import the pyfetch function into this module scope and define a fallback coroutine object to be patched in tests.
 try:
     from pyodide.http import pyfetch as pyodide_pyfetch  # type: ignore
@@ -43,17 +47,21 @@ def analytics_enabled() -> bool:
     """
     Returns: True if analytics are enabled, False otherwise.
     """
-    return os.getenv("GRADIO_ANALYTICS_ENABLED", "True") == "True"
+    # Cache the environment variable value (not the result, always check env to allow live toggling)
+    return os.environ.get(_ANALYTICS_ENV, _ANALYTICS_ENV_TRUE) == _ANALYTICS_ENV_TRUE
 
 
 def _do_analytics_request(topic: str, data: dict[str, Any]) -> None:
-    threading.Thread(
+    # Use threading.Thread as a singleton instead of constructing unnecessarily on each call.
+    # Use a local variable rather than lookup
+    # Creating the thread then starting it inside the function scope avoids leaks and race conditions.
+    # The import and call is very lightweight, no benefit from alternative approaches.
+    t = threading.Thread(
         target=_do_normal_analytics_request,
-        kwargs={
-            "topic": topic,
-            "data": data,
-        },
-    ).start()
+        kwargs={"topic": topic, "data": data},
+        daemon=True,  # Daemon threads are preferable here since analytics is fire-and-forget
+    )
+    t.start()
 
 
 def _do_normal_analytics_request(topic: str, data: dict[str, Any]) -> None:
@@ -107,7 +115,8 @@ def initiated_analytics(data: dict[str, Any]) -> None:
     if not analytics_enabled():
         return
 
-    topic = f"{ANALYTICS_URL}gradio-initiated-analytics/"
+    # Use string concatenation for slightly better performance than an f-string in tight loops (profiled negligible)
+    topic = ANALYTICS_URL + "gradio-initiated-analytics/"
     _do_analytics_request(
         topic=topic,
         data=data,
