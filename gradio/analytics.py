@@ -43,7 +43,11 @@ def analytics_enabled() -> bool:
     """
     Returns: True if analytics are enabled, False otherwise.
     """
-    return os.getenv("GRADIO_ANALYTICS_ENABLED", "True") == "True"
+    if not hasattr(analytics_enabled, "_enabled"):
+        analytics_enabled._enabled = (
+            os.getenv("GRADIO_ANALYTICS_ENABLED", "True") == "True"
+        )
+    return analytics_enabled._enabled  # type: ignore[attr-defined]
 
 
 def _do_analytics_request(topic: str, data: dict[str, Any]) -> None:
@@ -227,11 +231,12 @@ def custom_component_analytics(
 
 
 def sketch_analytics() -> None:
+    if not analytics_enabled():
+        return
+
     data = {
         "command": "sketch",
     }
-    if not analytics_enabled():
-        return
 
     _do_analytics_request(
         topic="gradio/sketch",
