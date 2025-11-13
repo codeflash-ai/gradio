@@ -251,13 +251,10 @@ def image_text_to_text_wrapper(client: InferenceClient):
 
 
 def chatbot_preprocess(text, state):
-    if not state:
-        return text, [], []
-    return (
-        text,
-        state["conversation"]["generated_responses"],
-        state["conversation"]["past_user_inputs"],
-    )
+    if state:
+        convo = state["conversation"]
+        return text, convo["generated_responses"], convo["past_user_inputs"]
+    return text, [], []
 
 
 def chatbot_postprocess(response):
