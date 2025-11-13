@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import inspect
 import re
 import types
@@ -20,17 +21,7 @@ def format(code: str, type: str):
     if type == "value":
         code = f"value = {code}"
 
-    ruff_args = ["ruff", "format", "-", "--line-length=60"]
-
-    process = Popen(
-        ruff_args,
-        stdin=PIPE,
-        stdout=PIPE,
-        stderr=PIPE,
-        universal_newlines=True,
-    )
-
-    formatted_code, err = process.communicate(input=str(code))
+    formatted_code = _format_code_with_ruff(str(code))
 
     if type == "value":
         formatted_code = re.sub(
@@ -921,3 +912,20 @@ pip install {name}
     )
 
     return source
+
+
+@functools.lru_cache(maxsize=128)
+def _format_code_with_ruff(code: str) -> str:
+    """Cache Ruff formatter calls for identical input."""
+    ruff_args = ["ruff", "format", "-", "--line-length=60"]
+
+    process = Popen(
+        ruff_args,
+        stdin=PIPE,
+        stdout=PIPE,
+        stderr=PIPE,
+        universal_newlines=True,
+    )
+
+    formatted_code, err = process.communicate(input=code)
+    return formatted_code
