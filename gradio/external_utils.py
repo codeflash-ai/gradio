@@ -261,13 +261,9 @@ def chatbot_preprocess(text, state):
 
 
 def chatbot_postprocess(response):
-    chatbot_history = list(
-        zip(
-            response["conversation"]["past_user_inputs"],
-            response["conversation"]["generated_responses"],
-            strict=False,
-        )
-    )
+    past_inputs = response["conversation"]["past_user_inputs"]
+    gen_responses = response["conversation"]["generated_responses"]
+    chatbot_history = list(zip(past_inputs, gen_responses))
     return chatbot_history, response
 
 
