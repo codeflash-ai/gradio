@@ -548,11 +548,14 @@ def assert_configs_are_equivalent_besides_ids(
         the root level of the config. By default, only "mode" is tested,
         so keys like "version" are ignored.
     """
-    config1 = copy.deepcopy(config1)
-    config2 = copy.deepcopy(config2)
     config1 = json.loads(json.dumps(config1))  # convert tuples to lists
     config2 = json.loads(json.dumps(config2))
 
+    # Preprocess component lists into id->component lookup dicts ONCE for O(1) lookup
+    def build_component_dict(components: list[dict]) -> dict:
+        return {c["id"]: c for c in components}
+
+    # Defensive checks, leave unchanged.
     for key in root_keys:
         if config1[key] != config2[key]:
             raise ValueError(f"Configs have different: {key}")
@@ -560,27 +563,36 @@ def assert_configs_are_equivalent_besides_ids(
     if len(config1["components"]) != len(config2["components"]):
         raise ValueError("# of components are different")
 
-    def assert_same_components(config1_id, config2_id):
-        c1 = list(filter(lambda c: c["id"] == config1_id, config1["components"]))
-        if len(c1) == 0:
-            raise ValueError(f"Could not find component with id {config1_id}")
-        c1 = c1[0]
-        c2 = list(filter(lambda c: c["id"] == config2_id, config2["components"]))
-        if len(c2) == 0:
-            raise ValueError(f"Could not find component with id {config2_id}")
-        c2 = c2[0]
-        c1 = copy.deepcopy(c1)
-        c1.pop("id")
-        c2 = copy.deepcopy(c2)
-        c2.pop("id")
-        if c1 != c2:
-            raise ValueError(f"{c1} does not match {c2}")
+    comp1_by_id = build_component_dict(config1["components"])
+    comp2_by_id = build_component_dict(config2["components"])
 
-    def same_children_recursive(children1, chidren2):
-        for child1, child2 in zip(children1, chidren2, strict=False):
+    def assert_same_components(config1_id, config2_id):
+        # O(1) lookup now, much faster for large component lists
+        try:
+            c1 = comp1_by_id[config1_id]
+        except KeyError:
+            raise ValueError(f"Could not find component with id {config1_id}")
+        try:
+            c2 = comp2_by_id[config2_id]
+        except KeyError:
+            raise ValueError(f"Could not find component with id {config2_id}")
+
+        # Only deep copy the specific component, not whole config
+        c1_prime = c1.copy()
+        c1_prime.pop("id")
+        c2_prime = c2.copy()
+        c2_prime.pop("id")
+        if c1_prime != c2_prime:
+            raise ValueError(f"{c1_prime} does not match {c2_prime}")
+
+    def same_children_recursive(children1, children2):
+        # Zip using min(len(children1), len(children2)) to replicate strict=False behavior safely
+        for child1, child2 in zip(children1, children2):
             assert_same_components(child1["id"], child2["id"])
             if "children" in child1 or "children" in child2:
-                same_children_recursive(child1["children"], child2["children"])
+                same_children_recursive(
+                    child1.get("children", []), child2.get("children", [])
+                )
 
     if "layout" in config1:
         if "layout" not in config2:
@@ -596,17 +608,29 @@ def assert_configs_are_equivalent_besides_ids(
             raise ValueError(
                 "The first config has a dependencies key, but the second does not"
             )
-        for d1, d2 in zip(
-            config1["dependencies"], config2["dependencies"], strict=False
-        ):
-            for t1, t2 in zip(d1.pop("targets"), d2.pop("targets"), strict=False):
+        for d1, d2 in zip(config1["dependencies"], config2["dependencies"]):
+            # Instead of .pop (which mutates the dict) and forces deepcopy,
+            # clone the dict once and remove keys, to avoid mutating outer data
+            d1_clone = d1.copy()
+            d2_clone = d2.copy()
+
+            targets1 = d1_clone.pop("targets")
+            targets2 = d2_clone.pop("targets")
+            for t1, t2 in zip(targets1, targets2):
                 assert_same_components(t1[0], t2[0])
-            for i1, i2 in zip(d1.pop("inputs"), d2.pop("inputs"), strict=False):
+
+            inputs1 = d1_clone.pop("inputs")
+            inputs2 = d2_clone.pop("inputs")
+            for i1, i2 in zip(inputs1, inputs2):
                 assert_same_components(i1, i2)
-            for o1, o2 in zip(d1.pop("outputs"), d2.pop("outputs"), strict=False):
+
+            outputs1 = d1_clone.pop("outputs")
+            outputs2 = d2_clone.pop("outputs")
+            for o1, o2 in zip(outputs1, outputs2):
                 assert_same_components(o1, o2)
-            if d1 != d2:
-                raise ValueError(f"{d1} does not match {d2}")
+
+            if d1_clone != d2_clone:
+                raise ValueError(f"{d1_clone} does not match {d2_clone}")
 
     return True
 
