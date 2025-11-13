@@ -138,10 +138,14 @@ def conversational_wrapper(client: InferenceClient):
             history = []
         history.append({"role": "user", "content": message})
         try:
-            out = ""
+            out_chunks = []
+            append = out_chunks.append  # Localize for faster loop execution
             for chunk in client.chat_completion(messages=history, stream=True):
-                out += chunk.choices[0].delta.content or "" if chunk.choices else ""
-                yield out
+                if chunk.choices:
+                    content = chunk.choices[0].delta.content
+                    if content:
+                        append(content)
+                yield "".join(out_chunks)
         except Exception as e:
             handle_hf_error(e)
 
