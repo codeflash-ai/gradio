@@ -72,6 +72,7 @@ from gradio.data_classes import (
     UserProvidedPath,
 )
 from gradio.exceptions import Error, InvalidPathError
+from threading import current_thread
 
 if TYPE_CHECKING:  # Only import for type checking (is False at runtime).
     from gradio.blocks import BlockContext, Blocks
@@ -113,8 +114,9 @@ def safe_get_stop_event() -> asyncio.Event:
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        if not hasattr(current_thread(), "_safe_event_loop"):
+            current_thread()._safe_event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(current_thread()._safe_event_loop)
     return asyncio.Event()
 
 
