@@ -120,7 +120,12 @@ def zero_shot_classification_wrapper(client: InferenceClient):
 
 def sentence_similarity_wrapper(client: InferenceClient):
     def sentence_similarity_inner(input: str, sentences: str):
-        return client.sentence_similarity(input, sentences.split("\n"))
+        # Avoid unnecessary work if 'sentences' is empty:
+        if not sentences:
+            return client.sentence_similarity(input, [])
+        # Using splitlines is usually faster than split("\n"), and avoids trailing empty strings for trailing newlines
+        sentence_list = sentences.splitlines()
+        return client.sentence_similarity(input, sentence_list)
 
     return sentence_similarity_inner
 
