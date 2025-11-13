@@ -6,6 +6,10 @@ import types
 import typing
 from subprocess import PIPE, Popen
 
+_RETURN_PATTERN = re.compile(
+    r"\bReturn(?:s)?\b:[ \t\n]*(.*?)(?=\n|$)", flags=re.DOTALL | re.IGNORECASE
+)
+
 
 def find_first_non_return_key(some_dict):
     """Finds the first key in a dictionary that is not "return"."""
@@ -98,9 +102,7 @@ def get_parameter_docstring(docstring: str, parameter_name: str):
 
 def get_return_docstring(docstring: str):
     """Gets the docstring for a return value."""
-    pattern = r"\bReturn(?:s){0,1}\b:[ \t\n]*(.*?)(?=\n|$)"
-
-    match = re.search(pattern, docstring, flags=re.DOTALL | re.IGNORECASE)
+    match = _RETURN_PATTERN.search(docstring)
     if match:
         return match.group(1).strip()
 
