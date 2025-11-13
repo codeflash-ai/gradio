@@ -93,7 +93,14 @@ class BrotliMiddleware:
     def _is_handler_excluded(self, scope: Scope) -> bool:
         handler = scope.get("path", "")
 
-        return any(pattern.search(handler) for pattern in self.excluded_handlers)
+        # Short-circuit if no patterns to check
+        if not self.excluded_handlers:
+            return False
+
+        for pattern in self.excluded_handlers:
+            if pattern.search(handler):
+                return True
+        return False
 
     # explicitly handle html, js, css, json via a whitelist. woff2 files are already compressed.
     # we don't want to compress binary files as they do not benefit much and it can cause bugs
@@ -147,7 +154,9 @@ class BrotliResponder:
         )
         self.br_buffer = io.BytesIO()
 
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:  # noqa
+    async def __call__(
+        self, scope: Scope, receive: Receive, send: Send
+    ) -> None:  # noqa
         self.send = send
         await self.app(scope, receive, self.send_with_brotli)
 
