@@ -469,7 +469,7 @@ def get_space() -> str | None:
 
 
 def is_zero_gpu_space() -> bool:
-    return os.getenv("SPACES_ZERO_GPU") == "true"
+    return os.environ.get("SPACES_ZERO_GPU") == "true"
 
 
 def download_if_url(article: str) -> str:
