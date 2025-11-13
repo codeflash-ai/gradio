@@ -65,6 +65,20 @@ class BrotliMiddleware:
         else:
             self.excluded_handlers = []
 
+        self.compressible_extensions = {
+            ".html",
+            ".htm",
+            ".js",
+            ".css",
+            ".json",
+            ".md",
+            ".txt",
+            ".csv",
+            ".tsv",
+            ".xml",
+            ".svg",
+        }
+
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if (
             self._is_handler_excluded(scope)
@@ -100,22 +114,9 @@ class BrotliMiddleware:
     def _is_compressible_file_type(self, scope: Scope) -> bool:
         """Check if the requested file has a compressible file extension."""
         path = scope.get("path", "")
-        compressible_extensions = {
-            ".html",
-            ".htm",
-            ".js",
-            ".css",
-            ".json",
-            ".md",
-            ".txt",
-            ".csv",
-            ".tsv",
-            ".xml",
-            ".svg",
-        }
         if "." in path:
-            extension = "." + path.split(".")[-1].lower()
-            return extension in compressible_extensions
+            extension = "." + path.rpartition(".")[-1].lower()
+            return extension in self.compressible_extensions
 
         return False
 
@@ -147,7 +148,9 @@ class BrotliResponder:
         )
         self.br_buffer = io.BytesIO()
 
-    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:  # noqa
+    async def __call__(
+        self, scope: Scope, receive: Receive, send: Send
+    ) -> None:  # noqa
         self.send = send
         await self.app(scope, receive, self.send_with_brotli)
 
