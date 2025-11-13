@@ -40,7 +40,7 @@ from collections.abc import (
     Sequence,
 )
 from contextlib import contextmanager
-from functools import wraps
+from functools import lru_cache, wraps
 from io import BytesIO
 from pathlib import Path
 from types import ModuleType, NoneType
@@ -635,6 +635,7 @@ def resolve_singleton(_list: list[Any] | Any) -> Any:
         return _list
 
 
+@lru_cache(maxsize=1)
 def get_all_components() -> list[type[Component] | type[BlockContext]]:
     import gradio as gr
 
@@ -686,12 +687,18 @@ def component_or_layout_class(cls_name: str) -> type[Component] | type[BlockCont
 
     components = {c.__name__.lower(): c for c in get_all_components()}
     # add aliases such as 'text'
-    for name, cls in components_module.__dict__.items():
-        if isinstance(cls, type) and issubclass(cls, Component):
+    # Use local variables for better loop performance
+    comp_dict_items = components_module.__dict__.items()
+    comp_type = type
+    comp_cls = Component
+    issub = issubclass
+    for name, cls in comp_dict_items:
+        if isinstance(cls, comp_type) and issub(cls, comp_cls):
             components[name.lower()] = cls
 
-    if cls_name.replace("_", "") in components:
-        return components[cls_name.replace("_", "")]
+    key = cls_name.replace("_", "")
+    if key in components:
+        return components[key]
 
     raise ValueError(
         f"No such component or layout: {cls_name}. "
