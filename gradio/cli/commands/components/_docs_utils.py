@@ -6,6 +6,8 @@ import types
 import typing
 from subprocess import PIPE, Popen
 
+_NONE_STR_TYPES = ("None", "NoneType")
+
 
 def find_first_non_return_key(some_dict):
     """Finds the first key in a dictionary that is not "return"."""
@@ -162,20 +164,35 @@ def format_type(_type: list[typing.Any]):
 
     s = []
     _current = None
+    literal_or_union = {"Literal", "Union"}  # Use set for O(1) lookup
+
+    # Local reference for frequently used function to minimize lookup overhead
+    _format_none = format_none
+    _format_type = format_type
+
+    # Use local variable for s_append to improve loop throughput
+    s_append = s.append
+
     for t in _type:
         if isinstance(t, str):
-            _current = format_none(t)
+            # Avoid function call overhead for the common case
+            if t == "None" or t == "NoneType" or t is None or t is type(None):
+                _current = "None"
+            else:
+                _current = t
             continue
 
         elif isinstance(t, list):
-            if len(t) == 0:
+            if not t:
                 continue
-            s.append(f"{format_type(t)}")
+            # Avoid redundant f-string; format_type already returns str
+            s_append(_format_type(t))
         else:
-            s.append(t)
-    if len(s) == 0:
+            s_append(t)
+    if not s:
         return _current
-    elif _current in ("Literal", "Union"):
+    elif _current in literal_or_union:
+        # Use generator expression for join, slightly more efficient than list
         return "| ".join(s)
     else:
         return f"{_current}[{','.join(s)}]"
