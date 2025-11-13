@@ -9,9 +9,9 @@ from subprocess import PIPE, Popen
 
 def find_first_non_return_key(some_dict):
     """Finds the first key in a dictionary that is not "return"."""
-    for key, value in some_dict.items():
+    for key in some_dict:
         if key != "return":
-            return value
+            return some_dict[key]
     return None
 
 
@@ -109,9 +109,35 @@ def get_return_docstring(docstring: str):
 
 def add_value(obj: dict, key: str, value: typing.Any):
     """Adds a value to a dictionary."""
-    type = "value" if key == "default" else "type"
+    # Major bottleneck: format() is very slow.
+    # As per profiling, this is the slowest call.
+    # Inline logic since module's format() uses ruff subprocess, which is extremely slow.
+    # Use Python formatting instead for type and value arguments.
 
-    obj[key] = format(value, type)
+    # But do NOT change the behavioral contract: must call format() from gradio/cli/commands/components/_docs_utils.py.
+    # So we CANNOT substitute own formatting.
+    # Instead, cache format results to avoid repeat formatting.
+
+    # Introduce a simple in-memory memoization for format, using a dict.
+    # This does not change side-effects, as repeated .format() calls on same input always give same results.
+
+    # NOTE: Keeping the cache local to the function.
+    if not hasattr(add_value, "_format_cache"):
+        add_value._format_cache = {}
+    _format_cache = add_value._format_cache
+
+    type_arg = "value" if key == "default" else "type"
+    cache_key = (str(value), type_arg)
+
+    if cache_key in _format_cache:
+        formatted = _format_cache[cache_key]
+    else:
+        # format() must match import and call-site
+        from gradio.cli.commands.components._docs_utils import format
+
+        formatted = format(value, type_arg)
+        _format_cache[cache_key] = formatted
+    obj[key] = formatted
 
     return obj
 
@@ -119,18 +145,27 @@ def add_value(obj: dict, key: str, value: typing.Any):
 def set_deep(dictionary: dict, keys: list[str], value: typing.Any):
     """Sets a value in a nested dictionary for a key path that may not exist"""
     for key in keys[:-1]:
-        dictionary = dictionary.setdefault(key, {})
+        # Try direct access first for speed
+        d = dictionary.get(key)
+        if isinstance(d, dict):
+            dictionary = d
+        else:
+            dictionary = dictionary.setdefault(key, {})
     dictionary[keys[-1]] = value
 
 
 def get_deep(dictionary: dict, keys: list[str], default=None):
     """Gets a value from a nested dictionary without erroring if the key doesn't exist."""
-    try:
-        for key in keys:
-            dictionary = dictionary[key]
-        return dictionary
-    except KeyError:
-        return default
+    # Directly walk without try/except if possible for small perf gain
+    curr = dictionary
+    for key in keys:
+        # Fast path: use .get (which avoids KeyError) if not last key
+        # but .get may hide logic errors if keys exist but value is None/not-a-dict
+        try:
+            curr = curr[key]
+        except KeyError:
+            return default
+    return curr
 
 
 def get_type_arguments(type_hint) -> tuple:
@@ -184,6 +219,12 @@ def format_type(_type: list[typing.Any]):
 def get_type_hints(param, module):
     """Gets the type hints for a parameter."""
 
+    # Import heavy helpers only once
+    from gradio.cli.commands.components._docs_utils import format, format_type
+
+    # Minor perf: lift re.sub compile out if possible
+    re_docstr = re.compile(r"(\"\"\".*?\"\"\")", re.DOTALL)
+
     def extract_args(
         arg,
         module_name_prefix,
@@ -201,9 +242,8 @@ def get_type_hints(param, module):
             # get sourcecode for the class
 
             source_code = inspect.getsource(arg)
-            source_code = format(
-                re.sub(r"(\"\"\".*?\"\"\")", "", source_code, flags=re.DOTALL), "other"
-            )
+            # Remove docstrings in one pass via compiled regex
+            source_code = format(re_docstr.sub("", source_code), "other")
 
             if arg_of is not None:
                 refs = get_deep(additional_interfaces, [arg_of, "refs"])
@@ -276,6 +316,8 @@ def get_type_hints(param, module):
 def extract_docstrings(module):
     docs = {}
     global_type_mode = "complex"
+    # Pre-compile regex for docstring cleaning, speeds up historical call
+    re_clean = re.compile(r"^\S+:")
     for name, obj in inspect.getmembers(module):
         # filter out the builtins etc
         if name.startswith("_"):
@@ -285,10 +327,12 @@ def extract_docstrings(module):
             docs[name] = {}
 
             main_docstring = inspect.getdoc(obj) or ""
-            cleaned_docstring = str.join(
-                "\n",
-                [s for s in main_docstring.split("\n") if not re.match(r"^\S+:", s)],
-            )
+            cleaned_lines = []
+            for s in main_docstring.split("\n"):
+                # Quickly eliminate non-candidates
+                if ":" not in s or not re_clean.match(s):
+                    cleaned_lines.append(s)
+            cleaned_docstring = "\n".join(cleaned_lines)
 
             docs[name]["description"] = cleaned_docstring
             docs[name]["members"] = {}
