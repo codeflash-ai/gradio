@@ -463,8 +463,8 @@ def ipython_check() -> bool:
 
 
 def get_space() -> str | None:
-    if os.getenv("SYSTEM") == "spaces":
-        return os.getenv("SPACE_ID")
+    if os.environ.get("SYSTEM") == "spaces":
+        return os.environ.get("SPACE_ID")
     return None
 
 
